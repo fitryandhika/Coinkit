@@ -89,7 +89,7 @@ body {
   .hero-chart-card, .price-list-card, .stat-card { grid-column: 1 !important; grid-row: auto !important; }
 }
 
-.panel-card { background: #101216; border: 1px solid #2b3139; border-radius: 20px; padding: 16px; margin-bottom: 12px; }
+.panel-card { background: #101216; border: 1px solid #2b3139; border-radius: 20px; padding: 16px; margin-bottom: 12px; box-sizing: border-box; overflow: hidden; }
 .hero-chart-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
 .hero-chart-header h2 { margin: 0 0 4px; font-size: 15px; }
 .ohlc-readout { font-size: 11px; color: #6b7280; margin: 0; }
@@ -97,10 +97,10 @@ body {
 .hero-chart-controls { display: flex; align-items: center; gap: 8px; }
 .symbol-badge { background: #181a20; border: 1px solid #2b3139; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
 
-.candlestick-chart-wrap { display: flex; width: 100%; position: relative; }
+.candlestick-chart-wrap { display: flex; width: 100%; max-width: 100%; position: relative; box-sizing: border-box; overflow: hidden; }
 .candlestick-svg { flex: 1; min-width: 0; display: block; }
-.chart-price-axis { position: relative; width: 52px; flex-shrink: 0; }
-.chart-price-axis-label { position: absolute; right: 4px; transform: translateY(-50%); font-size: 9px; color: #6b7280; white-space: nowrap; }
+.chart-price-axis { position: relative; width: 54px; flex-shrink: 0; box-sizing: border-box; overflow: hidden; }
+.chart-price-axis-label { position: absolute; right: 6px; transform: translateY(-50%); font-size: 9px; color: #6b7280; white-space: nowrap; }
 .candle-wick-up { stroke: #16c784; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .candle-wick-down { stroke: #ea3943; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .candle-body-up { fill: #16c784; }
