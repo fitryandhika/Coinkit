@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMarketTickers } from "@/hooks/useMarketTickers";
 import TechnicalReportPanel from "@/components/technical/TechnicalReportPanel";
+import CoinIcon from "@/components/CoinIcon";
 
 function formatNumber(value, options) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -18,7 +19,10 @@ export default function OpportunityDetail({ entry, mode, onClose }) {
   return (
     <div className="detail-panel">
       <div className="detail-header">
-        <h3>{entry.symbol}</h3>
+        <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <CoinIcon symbol={entry.symbol} size={20} />
+          {entry.symbol}
+        </h3>
         <button onClick={onClose} className="close-btn">✕</button>
       </div>
 

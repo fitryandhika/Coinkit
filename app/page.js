@@ -5,6 +5,7 @@ import Link from "next/link";
 import Topbar from "@/components/layout/Topbar";
 import CandlestickChart from "@/components/charts/CandlestickChart";
 import Sparkline from "@/components/charts/Sparkline";
+import CoinIcon from "@/components/CoinIcon";
 import TimeframeSelector from "@/components/screener/TimeframeSelector";
 import { useMarketTickers } from "@/hooks/useMarketTickers";
 import { TIMEFRAMES } from "@/lib/bitget/constants";
@@ -97,7 +98,7 @@ export default function DashboardPage() {
               const isUp = (t?.change24h ?? 0) >= 0;
               return (
                 <button key={symbol} className="price-list-row" onClick={() => setFocusSymbol(symbol)}>
-                  <span className="price-list-dot" style={{ background: isUp ? "#16c784" : "#ea3943" }} />
+                  <CoinIcon symbol={symbol} size={22} />
                   <span className="price-list-symbol">{symbol.replace("USDT", "")}</span>
                   <span className="price-list-price">{t?.price ?? "—"}</span>
                   <span className={isUp ? "price-list-change up" : "price-list-change down"}>

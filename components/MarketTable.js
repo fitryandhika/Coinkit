@@ -1,5 +1,7 @@
 "use client";
 
+import CoinIcon from "@/components/CoinIcon";
+
 function formatNumber(value, options) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return value.toLocaleString("en-US", options);
@@ -30,7 +32,12 @@ export default function MarketTable({ tickers, sortKey, sortDir, onSort, onSelec
         {tickers.map((t, idx) => (
           <tr key={t.symbol} className={onSelect ? "clickable-row" : undefined} onClick={() => onSelect && onSelect(t.symbol)}>
             <td>{idx + 1}</td>
-            <td>{t.symbol}</td>
+            <td>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <CoinIcon symbol={t.symbol} size={20} />
+                {t.symbol}
+              </span>
+            </td>
             <td>{formatNumber(t.price, { maximumFractionDigits: 8 })}</td>
             <td className={(t.change24h ?? 0) >= 0 ? "up" : "down"}>
               {t.change24h === null ? "—" : `${t.change24h >= 0 ? "+" : ""}${t.change24h.toFixed(2)}%`}

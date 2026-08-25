@@ -1,5 +1,7 @@
 "use client";
 
+import CoinIcon from "@/components/CoinIcon";
+
 function formatNumber(value, options) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return value.toLocaleString("en-US", options);
@@ -43,7 +45,12 @@ export default function OpportunityTable({ results, sortKey, sortDir, onSort, on
         {results.map((entry, idx) => (
           <tr key={entry.symbol} onClick={() => onSelect(entry.symbol)} className="clickable-row">
             <td>{idx + 1}</td>
-            <td>{entry.symbol}</td>
+            <td>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <CoinIcon symbol={entry.symbol} size={20} />
+                {entry.symbol}
+              </span>
+            </td>
             <td>{formatNumber(entry.price, { maximumFractionDigits: 8 })}</td>
             <td className={(entry.change24h ?? 0) >= 0 ? "up" : "down"}>
               {entry.change24h === null ? "—" : `${entry.change24h >= 0 ? "+" : ""}${entry.change24h.toFixed(2)}%`}

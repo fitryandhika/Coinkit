@@ -1,5 +1,7 @@
 "use client";
 
+import CoinIcon from "@/components/CoinIcon";
+
 function formatNumber(value, options) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return value.toLocaleString("en-US", options);
@@ -13,7 +15,10 @@ export default function PriceCard({ ticker }) {
   return (
     <div className="price-card">
       <div className="price-card-header">
-        <h2>{ticker.symbol}</h2>
+        <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <CoinIcon symbol={ticker.symbol} size={22} />
+          {ticker.symbol}
+        </h2>
         <span className={isUp ? "change up" : "change down"}>
           {ticker.change24h === null ? "—" : `${isUp ? "+" : ""}${ticker.change24h.toFixed(2)}%`}
         </span>

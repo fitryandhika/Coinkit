@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import CoinIcon from "@/components/CoinIcon";
 
 function formatNumber(value, options) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -53,7 +54,10 @@ export default function TechnicalReportPanel({ symbol, market, onClose }) {
   return (
     <div className="detail-panel technical-panel">
       <div className="detail-header">
-        <h3>{symbol} · Technical Analysis</h3>
+        <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <CoinIcon symbol={symbol} size={20} />
+          {symbol} · Technical Analysis
+        </h3>
         <button onClick={onClose} className="close-btn">✕</button>
       </div>
 
