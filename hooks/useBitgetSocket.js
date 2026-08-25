@@ -123,5 +123,38 @@ export function useBitgetSocket(mode, symbols) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, JSON.stringify(symbols)]);
 
+  // Browser mobile sering menghentikan/menahan koneksi & timer saat tab di-background
+  // (layar terkunci, pindah app). Begitu tab aktif lagi, coba nyambung ulang dari nol —
+  // baik saat status sudah "failed" (jatah reconnect habis) maupun "reconnecting" yang
+  // macet karena timer di-throttle browser selama background.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      if (status !== "failed" && status !== "reconnecting") return;
+
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+
+      // Tutup socket lama (kalau masih ada sisa percobaan tertunda) sebelum mulai
+      // yang baru, supaya tidak ada dua koneksi nyambung bersamaan.
+      if (wsRef.current) {
+        closedByUserRef.current = true;
+        try {
+          wsRef.current.close();
+        } catch (err) {
+          // noop
+        }
+      }
+
+      attemptsRef.current = 0;
+      connect();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [status, connect]);
+
   return { status, tickers, lastMessageAt };
 }
