@@ -2,13 +2,20 @@
 
 import { macd } from "@/lib/technical/indicators";
 
-export default function MACDChart({ candles, height = 90 }) {
+export default function MACDChart({ candles, height = 90, visibleCount }) {
   if (!candles || candles.length < 35) {
     return <div className="chart-empty" style={{ height }}>Data belum cukup untuk MACD.</div>;
   }
 
-  const closes = candles.map((c) => c.close ?? 0);
-  const { macdLine, signalLine, histogram } = macd(closes, 12, 26, 9);
+  const closesFull = candles.map((c) => c.close ?? 0);
+  const { macdLine: macdLineFull, signalLine: signalLineFull, histogram: histogramFull } = macd(closesFull, 12, 26, 9);
+
+  const startIndex = visibleCount && visibleCount < candles.length ? candles.length - visibleCount : 0;
+  const visibleCandles = candles.slice(startIndex);
+  const macdLine = macdLineFull.slice(startIndex);
+  const signalLine = signalLineFull.slice(startIndex);
+  const histogram = histogramFull.slice(startIndex);
+
   const width = 100;
 
   const validValues = [...histogram, ...macdLine, ...signalLine].filter((v) => v !== null);
@@ -19,8 +26,8 @@ export default function MACDChart({ candles, height = 90 }) {
 
   const mid = height / 2;
   const yForValue = (v) => mid - (v / maxAbs) * mid * 0.9;
-  const xForIndex = (i) => (i / (candles.length - 1)) * width;
-  const barWidth = (width / candles.length) * 0.6;
+  const xForIndex = (i) => (i / (visibleCandles.length - 1)) * width;
+  const barWidth = (width / visibleCandles.length) * 0.6;
 
   const macdPoints = macdLine.map((v, i) => (v === null ? null : `${xForIndex(i)},${yForValue(v)}`)).filter(Boolean).join(" ");
   const signalPoints = signalLine.map((v, i) => (v === null ? null : `${xForIndex(i)},${yForValue(v)}`)).filter(Boolean).join(" ");

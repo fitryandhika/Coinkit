@@ -97,7 +97,10 @@ body {
 .hero-chart-controls { display: flex; align-items: center; gap: 8px; }
 .symbol-badge { background: #181a20; border: 1px solid #2b3139; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
 
-.candlestick-svg { width: 100%; display: block; }
+.candlestick-chart-wrap { display: flex; width: 100%; position: relative; }
+.candlestick-svg { flex: 1; min-width: 0; display: block; }
+.chart-price-axis { position: relative; width: 52px; flex-shrink: 0; }
+.chart-price-axis-label { position: absolute; right: 4px; transform: translateY(-50%); font-size: 9px; color: #6b7280; white-space: nowrap; }
 .candle-wick-up { stroke: #16c784; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .candle-wick-down { stroke: #ea3943; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .candle-body-up { fill: #16c784; }
@@ -111,7 +114,7 @@ body {
 .price-list-card h3 { margin: 0 0 4px; font-size: 15px; }
 .price-list-sub { font-size: 11px; color: #6b7280; margin: 0 0 12px; }
 .price-list { display: flex; flex-direction: column; gap: 4px; }
-.price-list-row { display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 10px; background: transparent; border: none; border-radius: 10px; padding: 8px; cursor: pointer; text-align: left; width: 100%; }
+.price-list-row { display: grid; grid-template-columns: 24px 1fr 88px 68px; align-items: center; gap: 8px; background: transparent; border: none; border-radius: 10px; padding: 8px; cursor: pointer; text-align: left; width: 100%; }
 .price-list-row:hover { background: #14161b; }
 .price-list-dot { width: 8px; height: 8px; border-radius: 50%; }
 
@@ -122,8 +125,8 @@ body {
   text-transform: uppercase; flex-shrink: 0; letter-spacing: -0.5px;
 }
 .price-list-symbol { font-size: 13px; font-weight: 600; color: #eaecef; }
-.price-list-price { font-size: 12px; color: #9ca3af; }
-.price-list-change { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.price-list-price { font-size: 12px; color: #9ca3af; text-align: right; }
+.price-list-change { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-align: center; }
 .price-list-change.up { color: #16c784; background: rgba(22,199,132,0.12); }
 .price-list-change.down { color: #ea3943; background: rgba(234,57,67,0.12); }
 
@@ -131,7 +134,7 @@ body {
 .stat-card-header h4 { margin: 0; font-size: 13px; color: #9ca3af; }
 .stat-card-link { color: #6b7280; text-decoration: none; }
 .stat-card-usd { font-size: 11px; color: #6b7280; }
-.stat-card-main { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.stat-card-main { display: flex; justify-content: flex-start; align-items: baseline; gap: 12px; margin-bottom: 10px; }
 .stat-card-symbol, .stat-card-score, .stat-card-value { font-size: 18px; font-weight: 800; }
 .stat-card-score { color: #16c784; }
 .stat-card-value.big { font-size: 22px; display: block; margin: 4px 0; }
@@ -281,3 +284,14 @@ body {
 .correlation-badge { font-size: 11px; color: #9ca3af; background: #14161b; border-radius: 8px; padding: 6px 10px; margin: 0 0 10px; display: inline-block; }
 
 .history-table td, .history-table th { white-space: nowrap; }
+
+/* ===== Technical Analysis: grid tile presisi + ikon status ===== */
+.tech-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
+.tech-detail-item { background: #14161b; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tech-detail-item span { font-size: 10px; color: #6b7280; }
+.tech-detail-item strong { font-size: 12px; color: #eaecef; line-height: 1.35; word-break: break-word; display: flex; align-items: center; gap: 4px; }
+
+.status-icon { flex-shrink: 0; }
+.status-icon-up { color: #16c784; }
+.status-icon-down { color: #ea3943; }
+.status-icon-neutral { color: #6b7280; }

@@ -2,16 +2,21 @@
 
 import { rsi } from "@/lib/technical/indicators";
 
-export default function RSIChart({ candles, height = 90 }) {
+export default function RSIChart({ candles, height = 90, visibleCount }) {
   if (!candles || candles.length < 15) {
     return <div className="chart-empty" style={{ height }}>Data belum cukup untuk RSI.</div>;
   }
 
-  const closes = candles.map((c) => c.close ?? 0);
-  const values = rsi(closes, 14);
+  const closesFull = candles.map((c) => c.close ?? 0);
+  const valuesFull = rsi(closesFull, 14);
+
+  const startIndex = visibleCount && visibleCount < candles.length ? candles.length - visibleCount : 0;
+  const visibleCandles = candles.slice(startIndex);
+  const values = valuesFull.slice(startIndex);
+
   const width = 100;
   const yForValue = (v) => height - (v / 100) * height;
-  const xForIndex = (i) => (i / (candles.length - 1)) * width;
+  const xForIndex = (i) => (i / (visibleCandles.length - 1)) * width;
   const points = values.map((v, i) => (v === null ? null : `${xForIndex(i)},${yForValue(v)}`)).filter(Boolean).join(" ");
   const lastValue = [...values].reverse().find((v) => v !== null);
 

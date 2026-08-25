@@ -33,7 +33,7 @@ export default function DashboardPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const res = await fetch(`/api/market/candles?mode=${mode}&symbol=${focusSymbol}&timeframe=${timeframe}&limit=60`, { signal: controller.signal });
+      const res = await fetch(`/api/market/candles?mode=${mode}&symbol=${focusSymbol}&timeframe=${timeframe}&limit=80`, { signal: controller.signal });
       const json = await res.json();
       if (json.success) setCandles(json.candles || []);
     } catch (err) {
@@ -62,9 +62,9 @@ export default function DashboardPage() {
     <>
       <Topbar mode={mode} onModeChange={setMode} connectionStatus={connectionStatus} lastUpdate={lastUpdate} />
 
-      <SymbolSearchBar onSearch={setFocusSymbol} />
-
       <GlobalMarketCard />
+
+      <SymbolSearchBar onSearch={setFocusSymbol} />
 
       <div className="dashboard-grid">
         <section className="panel-card hero-chart-card ticker-card">
@@ -98,10 +98,10 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <CandlestickChart candles={candles} height={260} overlay={overlay} />
+          <CandlestickChart candles={candles} height={260} overlay={overlay} visibleCount={60} showPriceAxis />
 
-          {subIndicator === "RSI" ? <RSIChart candles={candles} height={90} /> : null}
-          {subIndicator === "MACD" ? <MACDChart candles={candles} height={90} /> : null}
+          {subIndicator === "RSI" ? <RSIChart candles={candles} height={90} visibleCount={60} /> : null}
+          {subIndicator === "MACD" ? <MACDChart candles={candles} height={90} visibleCount={60} /> : null}
           {subIndicator === "KDJ" ? (
             <p className="detail-sub" style={{ marginTop: 8 }}>Indikator KDJ belum tersedia — sedang dikembangkan.</p>
           ) : null}
