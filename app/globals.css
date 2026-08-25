@@ -245,7 +245,9 @@ body {
 
 .sub-chart-wrap { margin-top: 8px; }
 .sub-chart-label { font-size: 10px; color: #6b7280; margin-bottom: 4px; }
-.sub-chart-svg { width: 100%; display: block; }
+.sub-chart-row { display: flex; width: 100%; box-sizing: border-box; overflow: hidden; }
+.sub-chart-svg { flex: 1; min-width: 0; display: block; }
+.chart-price-axis-spacer { width: 54px; flex-shrink: 0; }
 
 /* ===== Global market (CoinGecko) ===== */
 .global-market-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }

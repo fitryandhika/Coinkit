@@ -1,7 +1,7 @@
 "use client";
 
 const OVERLAY_TABS = ["MA", "EMA", "BOLL"];
-const SUB_TABS = ["VOL", "MACD", "RSI", "KDJ"];
+const SUB_TABS = ["VOL", "MACD", "RSI"];
 
 export default function IndicatorTabRow({ overlay, onOverlayChange, subIndicator, onSubChange }) {
   return (

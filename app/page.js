@@ -100,11 +100,8 @@ export default function DashboardPage() {
 
           <CandlestickChart candles={candles} height={260} overlay={overlay} visibleCount={60} showPriceAxis />
 
-          {subIndicator === "RSI" ? <RSIChart candles={candles} height={90} visibleCount={60} /> : null}
-          {subIndicator === "MACD" ? <MACDChart candles={candles} height={90} visibleCount={60} /> : null}
-          {subIndicator === "KDJ" ? (
-            <p className="detail-sub" style={{ marginTop: 8 }}>Indikator KDJ belum tersedia — sedang dikembangkan.</p>
-          ) : null}
+          {subIndicator === "RSI" ? <RSIChart candles={candles} height={90} visibleCount={60} alignPriceAxis /> : null}
+          {subIndicator === "MACD" ? <MACDChart candles={candles} height={90} visibleCount={60} alignPriceAxis /> : null}
 
           <IndicatorTabRow overlay={overlay} onOverlayChange={setOverlay} subIndicator={subIndicator} onSubChange={setSubIndicator} />
         </section>
