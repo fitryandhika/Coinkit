@@ -67,18 +67,19 @@ export default function CandlestickChart({ candles, height = 260, overlay = "MA"
   const yForPrice = (price) => padding.top + ((maxPrice - price) / priceRange) * priceHeight;
   const xForIndex = (i) => i * candleWidth + candleWidth / 2;
 
-  const priceAxisPoints = showPriceAxis
-    ? [0, 0.25, 0.5, 0.75, 1].map((t) => {
-        const price = maxPrice - t * priceRange;
-        return { top: yForPrice(price), price };
-      })
-    : [];
+  // 5 titik grid harga (0/25/50/75/100% dari range) — dipakai untuk gridline DAN
+  // label price axis, jadi posisinya selalu sinkron persis satu sama lain.
+  const priceGridPoints = [0, 0.25, 0.5, 0.75, 1].map((t) => {
+    const price = maxPrice - t * priceRange;
+    return { top: yForPrice(price), price };
+  });
 
   return (
     <div className="candlestick-chart-wrap" style={{ height }}>
       <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="candlestick-svg" style={{ height }}>
-        <line x1="0" y1={yForPrice(maxPrice)} x2={width} y2={yForPrice(maxPrice)} className="chart-refline" />
-        <line x1="0" y1={yForPrice(minPrice)} x2={width} y2={yForPrice(minPrice)} className="chart-refline" />
+        {priceGridPoints.map((p, idx) => (
+          <line key={`grid-${idx}`} x1="0" y1={p.top} x2={width} y2={p.top} className="chart-refline" />
+        ))}
 
         {visibleCandles.map((c, i) => {
           if (c.open === null || c.close === null || c.high === null || c.low === null) return null;
@@ -113,7 +114,7 @@ export default function CandlestickChart({ candles, height = 260, overlay = "MA"
 
       {showPriceAxis ? (
         <div className="chart-price-axis" style={{ height }}>
-          {priceAxisPoints.map((p, idx) => (
+          {priceGridPoints.map((p, idx) => (
             <span key={idx} className="chart-price-axis-label" style={{ top: `${p.top}px` }}>
               {formatAxisPrice(p.price)}
             </span>
