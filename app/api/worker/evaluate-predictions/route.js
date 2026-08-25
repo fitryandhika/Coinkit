@@ -3,6 +3,7 @@ import { listDuePredictions, updatePredictionStatus } from "@/lib/db/predictions
 import { getOutcome, initOutcome, updateOutcome } from "@/lib/db/outcomes";
 import { getSnapshot } from "@/lib/db/snapshots";
 import { evaluateOutcome, fetchOutcomeCandles } from "@/lib/outcome/monitor";
+import { evaluateTrailingOutcome } from "@/lib/outcome/trailingMonitor";
 import { evaluateWaitOutcome } from "@/lib/outcome/waitEvaluation";
 import { isExpired, nextCheckAt, isDueForCheck } from "@/lib/outcome/scheduler";
 import { OUTCOME_CONFIG } from "@/lib/outcome/config";
@@ -68,10 +69,19 @@ async function runWorker(request) {
         continue;
       }
 
-      const evalResult = evaluateOutcome({
-        direction: prediction.decision, entry: prediction.entry, stopLoss: prediction.stop_loss,
-        tp1: prediction.tp1, tp2: prediction.tp2, tp3: prediction.tp3, candles,
-      });
+      // Prediction lama (dibuat sebelum fitur trailing SL) tidak punya trail_atr —
+      // fallback otomatis ke evaluateOutcome() lama (SL/TP tetap), tidak diubah sama sekali.
+      const hasTrailing = prediction.trail_atr !== null && prediction.trail_atr !== undefined;
+      const evalResult = hasTrailing
+        ? evaluateTrailingOutcome({
+            direction: prediction.decision, entry: prediction.entry, stopLoss: prediction.stop_loss,
+            tp1: prediction.tp1, tp2: prediction.tp2, tp3: prediction.tp3,
+            trailAtr: prediction.trail_atr, trailMultiplier: prediction.trail_multiplier, candles,
+          })
+        : evaluateOutcome({
+            direction: prediction.decision, entry: prediction.entry, stopLoss: prediction.stop_loss,
+            tp1: prediction.tp1, tp2: prediction.tp2, tp3: prediction.tp3, candles,
+          });
 
       const finished = evalResult.outcome !== "PENDING" || expired;
       const finalOutcome = evalResult.outcome !== "PENDING" ? evalResult.outcome : expired ? "EXPIRED" : "PENDING";
@@ -87,6 +97,9 @@ async function runWorker(request) {
         tp2_hit_at: evalResult.tp2HitAt ? new Date(evalResult.tp2HitAt).toISOString() : null,
         tp3_hit_at: evalResult.tp3HitAt ? new Date(evalResult.tp3HitAt).toISOString() : null,
         sl_hit_at: evalResult.slHitAt ? new Date(evalResult.slHitAt).toISOString() : null,
+        exit_price: evalResult.exitPrice ?? null,
+        breakeven_activated: evalResult.breakevenActivated ?? false,
+        final_stop_price: evalResult.finalStopPrice ?? null,
         outcome: finalOutcome,
         status: finished ? "COMPLETED" : "PENDING",
         evaluation_ended_at: finished ? new Date(nowMs).toISOString() : null,

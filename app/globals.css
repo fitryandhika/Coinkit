@@ -48,7 +48,7 @@ body {
 .app-topbar-v2 { margin-bottom: 16px; }
 .app-topbar-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .page-title { font-size: 16px; margin: 4px 0 10px; color: #eaecef; }
-.connection-status-bar { margin-top: 8px; background: #14161b; border: 1px solid #2b3139; border-radius: 12px; padding: 10px 14px; }
+.connection-status-bar { margin-top: 8px; margin-bottom: 0; }
 
 .mode-switch {
   position: relative;
@@ -151,7 +151,8 @@ body {
 
 .connection-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #848e9c; }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.ts { color: #6b7280; }
+.ts { color: #6b7280; display: inline-flex; align-items: center; gap: 3px; }
+.ts-icon { flex-shrink: 0; }
 
 .error-banner { background: #2b1215; color: #ea3943; padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
 
@@ -263,3 +264,20 @@ body {
 
 .opportunities-controls-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
 .opportunities-controls-row .chip-group { margin: 6px 0; }
+
+/* ===== Perbaikan tampilan lanjutan ===== */
+.mode-switch.compact { padding: 3px; margin-bottom: 0; }
+.mode-switch.compact .mode-switch-btn { padding: 5px 14px; font-size: 10px; }
+
+.app-search-standalone { width: 100%; margin-bottom: 12px; box-sizing: border-box; }
+.app-search-standalone input { flex: 1; width: 100%; }
+
+.chart-level-line { stroke-width: 0.4; stroke-dasharray: 2,1; vector-effect: non-scaling-stroke; }
+
+.tech-section-title { display: flex; align-items: center; gap: 6px; }
+.chart-legend-note { display: flex; align-items: center; font-size: 10px; color: #6b7280; margin: 6px 0 12px; }
+.legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+
+.correlation-badge { font-size: 11px; color: #9ca3af; background: #14161b; border-radius: 8px; padding: 6px 10px; margin: 0 0 10px; display: inline-block; }
+
+.history-table td, .history-table th { white-space: nowrap; }

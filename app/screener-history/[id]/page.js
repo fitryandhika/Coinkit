@@ -21,14 +21,14 @@ export default function ScreenerHistoryDetailPage() {
       .catch(() => setStatus("error"));
   }, [id]);
 
-  if (status === "loading") return <><Topbar title="Detail Setup" showSearch={false} /><p className="detail-sub">Memuat...</p></>;
-  if (status === "error" || !data) return <><Topbar title="Detail Setup" showSearch={false} /><p className="error-banner">Data tidak ditemukan.</p></>;
+  if (status === "loading") return <><Topbar title="Detail Setup" /><p className="detail-sub">Memuat...</p></>;
+  if (status === "error" || !data) return <><Topbar title="Detail Setup" /><p className="error-banner">Data tidak ditemukan.</p></>;
 
   const { prediction, outcome, manualTrade } = data;
 
   return (
     <>
-      <Topbar title={`${prediction.symbol} · ${prediction.decision}`} showSearch={false} />
+      <Topbar title={`${prediction.symbol} · ${prediction.decision}`} />
       <p className="detail-sub">Tercatat: {new Date(prediction.timestamp).toLocaleString("id-ID")}</p>
 
       <div className="panel-card">
@@ -40,11 +40,28 @@ export default function ScreenerHistoryDetailPage() {
         <h4 className="section-title">Level Saat Dicatat</h4>
         <div className="detail-grid">
           <div><span>Entry</span><strong>{formatNumber(prediction.entry, { maximumFractionDigits: 8 })}</strong></div>
-          <div><span>Stop Loss</span><strong>{formatNumber(prediction.stop_loss, { maximumFractionDigits: 8 })}</strong></div>
-          <div><span>TP1</span><strong>{formatNumber(prediction.tp1, { maximumFractionDigits: 8 })}</strong></div>
-          <div><span>TP2</span><strong>{formatNumber(prediction.tp2, { maximumFractionDigits: 8 })}</strong></div>
-          <div><span>TP3</span><strong>{formatNumber(prediction.tp3, { maximumFractionDigits: 8 })}</strong></div>
+          <div><span>Stop Loss Awal</span><strong>{formatNumber(prediction.stop_loss, { maximumFractionDigits: 8 })}</strong></div>
+          <div><span>TP1 (referensi)</span><strong>{formatNumber(prediction.tp1, { maximumFractionDigits: 8 })}</strong></div>
+          <div><span>TP2 (referensi)</span><strong>{formatNumber(prediction.tp2, { maximumFractionDigits: 8 })}</strong></div>
+          <div><span>TP3 (referensi)</span><strong>{formatNumber(prediction.tp3, { maximumFractionDigits: 8 })}</strong></div>
         </div>
+
+        {prediction.trail_atr !== null && prediction.trail_atr !== undefined ? (
+          <>
+            <h4 className="section-title">Pengaturan Trailing Stop</h4>
+            <div className="detail-grid">
+              <div><span>ATR Trailing</span><strong>{formatNumber(prediction.trail_atr, { maximumFractionDigits: 8 })}</strong></div>
+              <div><span>Trail Multiplier</span><strong>{formatNumber(prediction.trail_multiplier, { maximumFractionDigits: 2 })}x</strong></div>
+              <div><span>Korelasi BTC</span><strong>{prediction.btc_correlation === null || prediction.btc_correlation === undefined ? "—" : prediction.btc_correlation.toFixed(2)}</strong></div>
+            </div>
+            <p className="score-note">
+              TP1/TP2/TP3 di atas hanya penanda referensi — exit sesungguhnya mengikuti stop loss yang bergerak
+              (breakeven lalu trailing), bukan berhenti otomatis begitu TP tersentuh.
+            </p>
+          </>
+        ) : (
+          <p className="detail-sub">Setup ini dicatat sebelum fitur trailing stop aktif — memakai SL tetap.</p>
+        )}
 
         {outcome ? (
           <>
@@ -53,6 +70,15 @@ export default function ScreenerHistoryDetailPage() {
               <div><span>Maximum Gain</span><strong>{outcome.maximum_gain_pct === null ? "—" : `${outcome.maximum_gain_pct}%`}</strong></div>
               <div><span>Maximum Drawdown</span><strong>{outcome.maximum_drawdown_pct === null ? "—" : `${outcome.maximum_drawdown_pct}%`}</strong></div>
               <div><span>Maximum R</span><strong>{outcome.maximum_r === null ? "—" : `${outcome.maximum_r}R`}</strong></div>
+              {outcome.exit_price !== null && outcome.exit_price !== undefined ? (
+                <div><span>Exit Price</span><strong>{formatNumber(outcome.exit_price, { maximumFractionDigits: 8 })}</strong></div>
+              ) : null}
+              {outcome.breakeven_activated ? (
+                <div><span>Breakeven</span><strong className="c-green">Aktif</strong></div>
+              ) : null}
+              {outcome.final_stop_price !== null && outcome.final_stop_price !== undefined ? (
+                <div><span>Stop Terakhir</span><strong>{formatNumber(outcome.final_stop_price, { maximumFractionDigits: 8 })}</strong></div>
+              ) : null}
             </div>
             <h4 className="section-title">Hasil</h4>
             <p className="detail-sub" style={{ fontSize: 16, fontWeight: 700 }}>{outcome.outcome}</p>

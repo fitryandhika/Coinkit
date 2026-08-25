@@ -2,7 +2,7 @@
 
 import { sma, ema, bollinger } from "@/lib/technical/indicators";
 
-export default function CandlestickChart({ candles, height = 260, overlay = "MA" }) {
+export default function CandlestickChart({ candles, height = 260, overlay = "MA", levels = [] }) {
   if (!candles || candles.length === 0) {
     return <div className="chart-empty" style={{ height }}>Memuat chart...</div>;
   }
@@ -37,8 +37,9 @@ export default function CandlestickChart({ candles, height = 260, overlay = "MA"
   }
 
   const overlayValuesFlat = overlayLines.flatMap((l) => l.values.filter((v) => v !== null));
-  const maxPrice = Math.max(...highs, ...overlayValuesFlat);
-  const minPrice = Math.min(...lows, ...overlayValuesFlat);
+  const levelValues = levels.map((l) => l.price).filter((v) => v !== null && v !== undefined);
+  const maxPrice = Math.max(...highs, ...overlayValuesFlat, ...levelValues);
+  const minPrice = Math.min(...lows, ...overlayValuesFlat, ...levelValues);
   const priceRange = maxPrice - minPrice || 1;
 
   const volumes = candles.map((c) => c.volume ?? 0);
@@ -74,7 +75,20 @@ export default function CandlestickChart({ candles, height = 260, overlay = "MA"
 
       {overlayLines.map((line, idx) => {
         const points = line.values.map((v, i) => (v === null ? null : `${xForIndex(i)},${yForPrice(v)}`)).filter(Boolean).join(" ");
-        return points ? <polyline key={idx} points={points} className="chart-ma-line" style={{ stroke: line.color }} /> : null;
+        return points ? <polyline key={`overlay-${idx}`} points={points} className="chart-ma-line" style={{ stroke: line.color }} /> : null;
+      })}
+
+      {levels.map((level, idx) => {
+        if (level.price === null || level.price === undefined) return null;
+        const y = yForPrice(level.price);
+        return (
+          <line
+            key={`level-${idx}`}
+            x1="0" y1={y} x2={width} y2={y}
+            className="chart-level-line"
+            style={{ stroke: level.color }}
+          />
+        );
       })}
     </svg>
   );

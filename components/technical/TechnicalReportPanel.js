@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { TrendingUp, Activity, Layers, ArrowUpDown, LineChart, Repeat2 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
+import CandlestickChart from "@/components/charts/CandlestickChart";
 
 function formatNumber(value, options) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -13,6 +15,7 @@ const TIMEFRAMES = ["5m", "15m", "1h", "4h", "1d"];
 export default function TechnicalReportPanel({ symbol, market, onClose }) {
   const [timeframe, setTimeframe] = useState("1h");
   const [report, setReport] = useState(null);
+  const [candles, setCandles] = useState([]);
   const [status, setStatus] = useState("loading");
   const [errorMessage, setErrorMessage] = useState(null);
   const abortRef = useRef(null);
@@ -24,17 +27,21 @@ export default function TechnicalReportPanel({ symbol, market, onClose }) {
     setStatus("loading");
 
     try {
-      const res = await fetch(`/api/analysis/technical?symbol=${symbol}&market=${market}&timeframe=${timeframe}`, {
-        signal: controller.signal,
-      });
-      const json = await res.json();
-      if (json.success) {
-        setReport(json.data);
+      const [reportRes, candlesRes] = await Promise.all([
+        fetch(`/api/analysis/technical?symbol=${symbol}&market=${market}&timeframe=${timeframe}`, { signal: controller.signal }),
+        fetch(`/api/market/candles?mode=${market}&symbol=${symbol}&timeframe=${timeframe}&limit=60`, { signal: controller.signal }),
+      ]);
+      const reportJson = await reportRes.json();
+      const candlesJson = await candlesRes.json();
+
+      if (reportJson.success) {
+        setReport(reportJson.data);
+        setCandles(candlesJson.success ? candlesJson.candles || [] : []);
         setStatus("ok");
         setErrorMessage(null);
       } else {
         setStatus("error");
-        setErrorMessage(json.error || "Market data temporarily unavailable.");
+        setErrorMessage(reportJson.error || "Market data temporarily unavailable.");
       }
     } catch (err) {
       if (err.name !== "AbortError") {
@@ -76,14 +83,28 @@ export default function TechnicalReportPanel({ symbol, market, onClose }) {
         report.dataQuality === "INSUFFICIENT_DATA" ? (
           <p className="error-banner">Data candle belum cukup untuk analisis teknikal timeframe ini.</p>
         ) : (
-          <TechnicalReportBody report={report} />
+          <TechnicalReportBody report={report} candles={candles} />
         )
       ) : null}
     </div>
   );
 }
 
-function TechnicalReportBody({ report }) {
+function SectionHeader({ icon: Icon, children }) {
+  return (
+    <h4 className="section-title tech-section-title">
+      <Icon size={14} />
+      {children}
+    </h4>
+  );
+}
+
+function TechnicalReportBody({ report, candles }) {
+  const levels = [
+    ...(report.support || []).map((p) => ({ price: p, color: "#16c784" })),
+    ...(report.resistance || []).map((p) => ({ price: p, color: "#ea3943" })),
+  ];
+
   return (
     <>
       <div className="detail-price">{formatNumber(report.price, { maximumFractionDigits: 8 })}</div>
@@ -91,14 +112,22 @@ function TechnicalReportBody({ report }) {
         <p className="detail-sub">Sebagian indikator (mis. SMA200/ADX) belum tersedia — candle belum cukup.</p>
       ) : null}
 
-      <h4 className="section-title">Trend</h4>
+      <CandlestickChart candles={candles} height={180} overlay="MA" levels={levels} />
+      <p className="chart-legend-note">
+        <span className="legend-dot" style={{ background: "#16c784" }} />
+        Support
+        <span className="legend-dot" style={{ background: "#ea3943", marginLeft: 12 }} />
+        Resistance
+      </p>
+
+      <SectionHeader icon={TrendingUp}>Trend</SectionHeader>
       <div className="detail-grid">
         <div><span>Short Term</span><strong>{report.trend.shortTerm}</strong></div>
         <div><span>Medium Term</span><strong>{report.trend.mediumTerm}</strong></div>
         <div><span>Long Term</span><strong>{report.trend.longTerm}</strong></div>
       </div>
 
-      <h4 className="section-title">Indicators</h4>
+      <SectionHeader icon={Activity}>Indicators</SectionHeader>
       <div className="detail-grid">
         <div><span>RSI (14)</span><strong>{formatNumber(report.indicators.rsi, { maximumFractionDigits: 2 })} · {report.indicators.rsiLabel}</strong></div>
         <div><span>MACD</span><strong>{report.indicators.macd.state} ({report.indicators.macd.histogramTrend})</strong></div>
@@ -108,23 +137,23 @@ function TechnicalReportBody({ report }) {
         <div><span>VWAP</span><strong>{formatNumber(report.indicators.vwap, { maximumFractionDigits: 8 })} · {report.indicators.vwapPosition}</strong></div>
       </div>
 
-      <h4 className="section-title">Market Structure</h4>
+      <SectionHeader icon={Layers}>Market Structure</SectionHeader>
       <div className="detail-grid">
         <div><span>Structure</span><strong>{report.structure.marketStructure}</strong></div>
-        <div><span>Higher High</span><strong>{report.structure.higherHigh === null ? "—" : report.structure.higherHigh ? "Yes" : "No"}</strong></div>
-        <div><span>Higher Low</span><strong>{report.structure.higherLow === null ? "—" : report.structure.higherLow ? "Yes" : "No"}</strong></div>
+        <div><span>Higher High</span><strong>{report.structure.higherHigh === null ? "—" : report.structure.higherHigh ? "Ya" : "Tidak"}</strong></div>
+        <div><span>Higher Low</span><strong>{report.structure.higherLow === null ? "—" : report.structure.higherLow ? "Ya" : "Tidak"}</strong></div>
       </div>
 
-      <h4 className="section-title">Support & Resistance</h4>
+      <SectionHeader icon={ArrowUpDown}>Support &amp; Resistance</SectionHeader>
       <div className="detail-grid">
         <div><span>Support</span><strong>{report.support.length ? report.support.map((s) => formatNumber(s, { maximumFractionDigits: 8 })).join(", ") : "—"}</strong></div>
         <div><span>Resistance</span><strong>{report.resistance.length ? report.resistance.map((r) => formatNumber(r, { maximumFractionDigits: 8 })).join(", ") : "—"}</strong></div>
       </div>
 
-      <h4 className="section-title">Breakout</h4>
+      <SectionHeader icon={LineChart}>Breakout</SectionHeader>
       <p className="detail-sub">{report.breakout.status.replaceAll("_", " ")}</p>
 
-      <h4 className="section-title">Multi Timeframe</h4>
+      <SectionHeader icon={Repeat2}>Multi Timeframe</SectionHeader>
       <div className="detail-grid">
         {Object.entries(report.multiTimeframe.byTimeframe).map(([tf, trend]) => (
           <div key={tf}><span>{tf}</span><strong>{trend}</strong></div>

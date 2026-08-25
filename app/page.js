@@ -8,6 +8,7 @@ import RSIChart from "@/components/charts/RSIChart";
 import MACDChart from "@/components/charts/MACDChart";
 import IndicatorTabRow from "@/components/dashboard/IndicatorTabRow";
 import GlobalMarketCard from "@/components/dashboard/GlobalMarketCard";
+import SymbolSearchBar from "@/components/dashboard/SymbolSearchBar";
 import CoinIcon from "@/components/CoinIcon";
 import { useMarketTickers } from "@/hooks/useMarketTickers";
 
@@ -59,7 +60,9 @@ export default function DashboardPage() {
 
   return (
     <>
-      <Topbar mode={mode} onModeChange={setMode} connectionStatus={connectionStatus} lastUpdate={lastUpdate} onSearchSymbol={setFocusSymbol} />
+      <Topbar mode={mode} onModeChange={setMode} connectionStatus={connectionStatus} lastUpdate={lastUpdate} />
+
+      <SymbolSearchBar onSearch={setFocusSymbol} />
 
       <GlobalMarketCard />
 

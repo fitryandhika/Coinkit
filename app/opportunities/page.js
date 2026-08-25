@@ -107,7 +107,7 @@ export default function OpportunitiesPage() {
 
   return (
     <>
-      <Topbar title="Top Opportunities" mode={mode} onModeChange={setMode} connectionStatus={status} lastUpdate={lastUpdate} showSearch={false} />
+      <Topbar title="Top Opportunities" mode={mode} onModeChange={setMode} connectionStatus={status} lastUpdate={lastUpdate} />
 
       <div className="opportunities-controls-row">
         <TimeframeSelector timeframe={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />

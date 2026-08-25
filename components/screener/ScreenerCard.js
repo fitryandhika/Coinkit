@@ -33,6 +33,13 @@ export default function ScreenerCard({ entry, mode }) {
         <span className="score-badge-lg">{formatNumber(entry.screenerScore, { maximumFractionDigits: 0 })}</span>
       </div>
 
+      {entry.btcCorrelation !== null && entry.btcCorrelation !== undefined ? (
+        <p className="correlation-badge">
+          Korelasi BTC: {entry.btcCorrelation.toFixed(2)}{" "}
+          ({Math.abs(entry.btcCorrelation) >= 0.6 ? "tinggi" : "rendah"}, {entry.btcCorrelation >= 0 ? "searah" : "berlawanan"})
+        </p>
+      ) : null}
+
       {entry.reasons?.length > 0 ? (
         <ul className="screener-reasons">
           {entry.reasons.map((r) => <li key={r}>✓ {r}</li>)}

@@ -81,7 +81,7 @@ export default function ScreenerPage() {
 
   return (
     <>
-      <Topbar title="Screener" mode={mode} onModeChange={setMode} connectionStatus={status} lastUpdate={lastUpdate} showSearch={false} />
+      <Topbar title="Screener" mode={mode} onModeChange={setMode} connectionStatus={status} lastUpdate={lastUpdate} />
 
       <TimeframeSelector timeframe={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />
 

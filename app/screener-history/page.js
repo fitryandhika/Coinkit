@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import Topbar from "@/components/layout/Topbar";
@@ -32,6 +32,7 @@ function ScatterCard({ title, data, xKey, yKey, xLabel, yLabel }) {
 }
 
 export default function ScreenerHistoryPage() {
+  const router = useRouter();
   const { records, loaded } = usePredictions({ limit: 100 });
   const [report, setReport] = useState(null);
   const [reportStatus, setReportStatus] = useState("loading");
@@ -49,7 +50,7 @@ export default function ScreenerHistoryPage() {
 
   return (
     <>
-      <Topbar title="Screener History" showSearch={false} />
+      <Topbar title="Screener History" />
 
       {reportStatus === "ok" && report ? (
         <>
@@ -86,20 +87,36 @@ export default function ScreenerHistoryPage() {
       ) : null}
 
       <h2 className="section-title">Riwayat Setup</h2>
-      {records.length === 0 ? <p className="detail-sub">Belum ada setup yang tercatat.</p> : null}
-      <div className="trade-history-list">
-        {records.map((r) => (
-          <Link key={r.id} href={`/screener-history/${r.id}`} className="detail-panel trade-history-item history-link">
-            <div className="detail-header">
-              <h4>{r.symbol} · {r.decision}</h4>
-              <span className={`status-badge status-${r.status?.toLowerCase()}`}>{r.status}</span>
-            </div>
-            <p className="detail-sub">
-              Score {formatNumber(r.score, { maximumFractionDigits: 0 })} · {new Date(r.timestamp).toLocaleString("id-ID")}
-            </p>
-          </Link>
-        ))}
-      </div>
+      {records.length === 0 ? (
+        <p className="detail-sub">Belum ada setup yang tercatat.</p>
+      ) : (
+        <div className="panel-card">
+          <table className="market-table history-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Decision</th>
+                <th>Score</th>
+                <th>Timeframe</th>
+                <th>Status</th>
+                <th>Tanggal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r) => (
+                <tr key={r.id} className="clickable-row" onClick={() => router.push(`/screener-history/${r.id}`)}>
+                  <td>{r.symbol}</td>
+                  <td>{r.decision}</td>
+                  <td>{formatNumber(r.score, { maximumFractionDigits: 0 })}</td>
+                  <td>{r.timeframe}</td>
+                  <td><span className={`status-badge status-${r.status?.toLowerCase()}`}>{r.status}</span></td>
+                  <td>{new Date(r.timestamp).toLocaleDateString("id-ID")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }

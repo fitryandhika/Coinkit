@@ -20,6 +20,9 @@ create table if not exists ai_predictions (
   risk_score numeric,
   evaluation_horizon text not null default '24H',
   reasoning jsonb,
+  trail_atr numeric,
+  btc_correlation numeric,
+  trail_multiplier numeric,
   user_action text not null default 'PENDING' check (user_action in ('PENDING','TAKEN','SKIPPED')),
   status text not null default 'PENDING'
 );
@@ -70,6 +73,9 @@ create table if not exists prediction_outcomes (
   tp2_hit_at timestamptz,
   tp3_hit_at timestamptz,
   sl_hit_at timestamptz,
+  exit_price numeric,
+  breakeven_activated boolean default false,
+  final_stop_price numeric,
   outcome text default 'PENDING',
   status text default 'PENDING'
 );
