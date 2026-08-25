@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/worker/evaluate-predictions", "schedule": "0 0 * * *" }
+  ]
+}
