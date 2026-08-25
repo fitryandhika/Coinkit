@@ -109,8 +109,10 @@ export default function OpportunitiesPage() {
     <>
       <Topbar title="Top Opportunities" mode={mode} onModeChange={setMode} connectionStatus={status} lastUpdate={lastUpdate} showSearch={false} />
 
-      <TimeframeSelector timeframe={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />
-      <TopCountSelector topCount={topCount} onChange={setTopCount} />
+      <div className="opportunities-controls-row">
+        <TimeframeSelector timeframe={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />
+        <TopCountSelector topCount={topCount} onChange={setTopCount} />
+      </div>
 
       {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
 

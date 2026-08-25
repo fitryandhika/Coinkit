@@ -2,26 +2,28 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Topbar from "@/components/layout/Topbar";
-import MarketTable from "@/components/MarketTable";
-import TechnicalReportPanel from "@/components/technical/TechnicalReportPanel";
+import TimeframeSelector from "@/components/screener/TimeframeSelector";
+import ScreenerFilters from "@/components/screener/ScreenerFilters";
+import ScreenerCard from "@/components/screener/ScreenerCard";
+import { TIMEFRAMES } from "@/lib/bitget/constants";
 
-const POLL_INTERVAL_MS = 8000;
+const POLL_INTERVAL_MS = 20000;
+const DEFAULT_FILTERS = { minScore: 0, minVolume: 0, minLiquidity: "ANY", maxSpread: null };
 
-export default function ScannerPage() {
+export default function ScreenerPage() {
   const [mode, setMode] = useState("spot");
-  const [tickers, setTickers] = useState([]);
+  const [timeframe, setTimeframe] = useState("1h");
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+
+  const [results, setResults] = useState([]);
   const [status, setStatus] = useState("connecting");
   const [lastUpdate, setLastUpdate] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
-  const [minVolume, setMinVolume] = useState(0);
-  const [sortKey, setSortKey] = useState("volume24h");
-  const [sortDir, setSortDir] = useState("desc");
-  const [selectedSymbol, setSelectedSymbol] = useState(null);
 
   const abortRef = useRef(null);
   const isFetchingRef = useRef(false);
 
-  const loadTickers = useCallback(async () => {
+  const loadScreener = useCallback(async () => {
     if (isFetchingRef.current) return;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
@@ -29,10 +31,10 @@ export default function ScannerPage() {
     isFetchingRef.current = true;
 
     try {
-      const res = await fetch(`/api/market/ticker?mode=${mode}`, { signal: controller.signal });
+      const res = await fetch(`/api/screener?mode=${mode}&timeframe=${timeframe}`, { signal: controller.signal });
       const json = await res.json();
       if (json.success) {
-        setTickers(json.tickers || []);
+        setResults(json.results || []);
         setStatus("rest-connected");
         setLastUpdate(Date.now());
         setErrorMessage(null);
@@ -48,56 +50,59 @@ export default function ScannerPage() {
     } finally {
       isFetchingRef.current = false;
     }
-  }, [mode]);
+  }, [mode, timeframe]);
 
   useEffect(() => {
     setStatus("connecting");
-    setSelectedSymbol(null);
-    loadTickers();
-    const interval = setInterval(loadTickers, POLL_INTERVAL_MS);
+    loadScreener();
+    const interval = setInterval(loadScreener, POLL_INTERVAL_MS);
     return () => {
       clearInterval(interval);
       if (abortRef.current) abortRef.current.abort();
     };
-  }, [loadTickers]);
+  }, [loadScreener]);
 
-  const handleSort = (key) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
-  };
-
-  const visibleTickers = useMemo(() => {
-    const filtered = tickers.filter((t) => (t.volume24h ?? 0) >= minVolume);
-    return [...filtered].sort((a, b) => {
-      const av = a[sortKey] ?? -Infinity;
-      const bv = b[sortKey] ?? -Infinity;
-      const diff = av - bv;
-      return sortDir === "asc" ? diff : -diff;
-    });
-  }, [tickers, minVolume, sortKey, sortDir]);
+  const filteredResults = useMemo(() => {
+    const liquidityOrder = { LOW: 0, MEDIUM: 1, HIGH: 2, UNKNOWN: -1 };
+    return results
+      .filter((r) => {
+        if ((r.screenerScore ?? -1) < filters.minScore) return false;
+        if ((r.volume24h ?? 0) < filters.minVolume) return false;
+        if (filters.minLiquidity !== "ANY") {
+          const rank = liquidityOrder[r.liquidityLabel] ?? -1;
+          const minRank = liquidityOrder[filters.minLiquidity] ?? 0;
+          if (rank < minRank) return false;
+        }
+        if (filters.maxSpread !== null && r.spreadPct !== null && r.spreadPct > filters.maxSpread) return false;
+        return true;
+      })
+      .sort((a, b) => (b.screenerScore ?? -1) - (a.screenerScore ?? -1));
+  }, [results, filters]);
 
   return (
     <>
-      <Topbar title="Scanner" mode={mode} onModeChange={setMode} connectionStatus={status} lastUpdate={lastUpdate} showSearch={false} />
+      <Topbar title="Screener" mode={mode} onModeChange={setMode} connectionStatus={status} lastUpdate={lastUpdate} showSearch={false} />
+
+      <TimeframeSelector timeframe={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />
 
       {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
 
       <div className="panel-card">
-        <div className="filter-bar">
-          <label htmlFor="minVolume">Min. Volume (quote)</label>
-          <input id="minVolume" type="number" min="0" value={minVolume} onChange={(e) => setMinVolume(Number(e.target.value) || 0)} />
-        </div>
-
-        <MarketTable tickers={visibleTickers} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelectedSymbol} />
+        <ScreenerFilters filters={filters} onChange={setFilters} />
       </div>
 
-      {selectedSymbol ? (
-        <TechnicalReportPanel symbol={selectedSymbol} market={mode} onClose={() => setSelectedSymbol(null)} />
-      ) : null}
+      <div className="screener-card-list">
+        {filteredResults.length === 0 ? (
+          <p className="detail-sub">Tidak ada coin yang cocok dengan filter saat ini.</p>
+        ) : (
+          filteredResults.map((entry) => <ScreenerCard key={entry.symbol} entry={entry} mode={mode} />)
+        )}
+      </div>
+
+      <p className="detail-sub" style={{ marginTop: 16 }}>
+        Setup dengan score ≥ 60 otomatis dicatat sebagai riwayat untuk dibandingkan dengan pergerakan market
+        sesungguhnya — lihat hasilnya di menu Screener History.
+      </p>
     </>
   );
 }

@@ -1,15 +1,8 @@
 "use client";
 
-function computeSMA(values, period) {
-  const result = new Array(values.length).fill(null);
-  for (let i = period - 1; i < values.length; i += 1) {
-    const window = values.slice(i - period + 1, i + 1);
-    result[i] = window.reduce((s, v) => s + v, 0) / period;
-  }
-  return result;
-}
+import { sma, ema, bollinger } from "@/lib/technical/indicators";
 
-export default function CandlestickChart({ candles, height = 260, maPeriod = 20 }) {
+export default function CandlestickChart({ candles, height = 260, overlay = "MA" }) {
   if (!candles || candles.length === 0) {
     return <div className="chart-empty" style={{ height }}>Memuat chart...</div>;
   }
@@ -26,23 +19,36 @@ export default function CandlestickChart({ candles, height = 260, maPeriod = 20 
   const chartHeight = height - padding.top - padding.bottom;
   const priceHeight = chartHeight - volumeHeight;
 
-  const maxPrice = Math.max(...highs);
-  const minPrice = Math.min(...lows);
+  const closes = candles.map((c) => c.close ?? 0);
+  const period = Math.min(20, candles.length);
+
+  let overlayLines = [];
+  if (overlay === "MA") {
+    overlayLines = [{ color: "#f0b90b", values: sma(closes, period) }];
+  } else if (overlay === "EMA") {
+    overlayLines = [{ color: "#4f7cff", values: ema(closes, period) }];
+  } else if (overlay === "BOLL") {
+    const bands = bollinger(closes, period, 2);
+    overlayLines = [
+      { color: "#f0b90b", values: bands.upper },
+      { color: "#6b7280", values: bands.middle },
+      { color: "#f0b90b", values: bands.lower },
+    ];
+  }
+
+  const overlayValuesFlat = overlayLines.flatMap((l) => l.values.filter((v) => v !== null));
+  const maxPrice = Math.max(...highs, ...overlayValuesFlat);
+  const minPrice = Math.min(...lows, ...overlayValuesFlat);
   const priceRange = maxPrice - minPrice || 1;
 
   const volumes = candles.map((c) => c.volume ?? 0);
   const maxVolume = Math.max(...volumes, 1);
-
-  const closes = candles.map((c) => c.close ?? 0);
-  const ma = computeSMA(closes, Math.min(maPeriod, candles.length));
 
   const candleWidth = width / candles.length;
   const bodyWidth = candleWidth * 0.6;
 
   const yForPrice = (price) => padding.top + ((maxPrice - price) / priceRange) * priceHeight;
   const xForIndex = (i) => i * candleWidth + candleWidth / 2;
-
-  const maPoints = ma.map((v, i) => (v === null ? null : `${xForIndex(i)},${yForPrice(v)}`)).filter(Boolean).join(" ");
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="candlestick-svg" style={{ height }}>
@@ -66,7 +72,10 @@ export default function CandlestickChart({ candles, height = 260, maPeriod = 20 
         );
       })}
 
-      {maPoints ? <polyline points={maPoints} className="chart-ma-line" /> : null}
+      {overlayLines.map((line, idx) => {
+        const points = line.values.map((v, i) => (v === null ? null : `${xForIndex(i)},${yForPrice(v)}`)).filter(Boolean).join(" ");
+        return points ? <polyline key={idx} points={points} className="chart-ma-line" style={{ stroke: line.color }} /> : null;
+      })}
     </svg>
   );
 }

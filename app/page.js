@@ -4,22 +4,25 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import Topbar from "@/components/layout/Topbar";
 import CandlestickChart from "@/components/charts/CandlestickChart";
-import Sparkline from "@/components/charts/Sparkline";
+import RSIChart from "@/components/charts/RSIChart";
+import MACDChart from "@/components/charts/MACDChart";
+import IndicatorTabRow from "@/components/dashboard/IndicatorTabRow";
+import GlobalMarketCard from "@/components/dashboard/GlobalMarketCard";
 import CoinIcon from "@/components/CoinIcon";
-import TimeframeSelector from "@/components/screener/TimeframeSelector";
 import { useMarketTickers } from "@/hooks/useMarketTickers";
-import { TIMEFRAMES } from "@/lib/bitget/constants";
 
 const WATCHLIST = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"];
+const DASHBOARD_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
 const CANDLE_POLL_MS = 15000;
 
 export default function DashboardPage() {
   const [mode, setMode] = useState("spot");
   const [focusSymbol, setFocusSymbol] = useState("BTCUSDT");
   const [timeframe, setTimeframe] = useState("15m");
+  const [overlay, setOverlay] = useState("MA");
+  const [subIndicator, setSubIndicator] = useState(null);
   const [candles, setCandles] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
-  const [performance, setPerformance] = useState(null);
 
   const { tickers, connectionStatus, lastUpdate } = useMarketTickers(mode, WATCHLIST);
   const abortRef = useRef(null);
@@ -50,43 +53,57 @@ export default function DashboardPage() {
       .catch(() => {});
   }, [mode]);
 
-  useEffect(() => {
-    fetch("/api/performance")
-      .then((res) => res.json())
-      .then((json) => { if (json.success) setPerformance(json); })
-      .catch(() => {});
-  }, []);
-
   const focusTicker = tickers[focusSymbol];
   const lastCandle = candles[candles.length - 1];
-  const sparklineData = candles.map((c) => c.close).filter((v) => v !== null);
+  const isUp = (focusTicker?.change24h ?? 0) >= 0;
 
   return (
     <>
       <Topbar mode={mode} onModeChange={setMode} connectionStatus={connectionStatus} lastUpdate={lastUpdate} onSearchSymbol={setFocusSymbol} />
 
+      <GlobalMarketCard />
+
       <div className="dashboard-grid">
-        <section className="panel-card hero-chart-card">
-          <div className="hero-chart-header">
+        <section className="panel-card hero-chart-card ticker-card">
+          <div className="ticker-card-header">
             <div>
-              <h2>Performance</h2>
-              <p className="ohlc-readout">
-                {lastCandle ? (
-                  <>
-                    Open: <span className="ohlc-open">{lastCandle.open}</span>{" "}
-                    High: <span className="ohlc-high">{lastCandle.high}</span>{" "}
-                    Low: <span className="ohlc-low">{lastCandle.low}</span>{" "}
-                    Close: <span className="ohlc-close">{lastCandle.close}</span>
-                  </>
-                ) : "Memuat data candle..."}
-              </p>
+              <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <CoinIcon symbol={focusSymbol} size={24} />
+                {focusSymbol}
+              </h2>
+              <span className="ticker-card-sub">{mode === "futures" ? "Perpetual" : "Spot"}</span>
             </div>
-            <div className="hero-chart-controls">
-              <span className="symbol-badge">{focusSymbol}</span>
-              <TimeframeSelector timeframe={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />
+            <div className="ticker-card-price">
+              <span className="price-big">{focusTicker?.price ?? "—"}</span>
+              <span className={isUp ? "change up" : "change down"}>
+                {focusTicker?.change24h == null ? "—" : `${isUp ? "+" : ""}${focusTicker.change24h.toFixed(2)}%`}
+              </span>
             </div>
           </div>
-          <CandlestickChart candles={candles} height={260} />
+
+          <div className="ohlc-row">
+            <div><span>Open</span><strong className="c-blue">{lastCandle?.open ?? "—"}</strong></div>
+            <div><span>High</span><strong className="c-green">{lastCandle?.high ?? "—"}</strong></div>
+            <div><span>Low</span><strong className="c-red">{lastCandle?.low ?? "—"}</strong></div>
+            <div><span>Close</span><strong>{lastCandle?.close ?? "—"}</strong></div>
+            <div><span>24H Vol</span><strong>{focusTicker?.volume24h != null ? focusTicker.volume24h.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—"}</strong></div>
+          </div>
+
+          <div className="chip-group" style={{ margin: "10px 0" }}>
+            {DASHBOARD_TIMEFRAMES.map((tf) => (
+              <button key={tf} className={timeframe === tf ? "chip active" : "chip"} onClick={() => setTimeframe(tf)}>{tf}</button>
+            ))}
+          </div>
+
+          <CandlestickChart candles={candles} height={260} overlay={overlay} />
+
+          {subIndicator === "RSI" ? <RSIChart candles={candles} height={90} /> : null}
+          {subIndicator === "MACD" ? <MACDChart candles={candles} height={90} /> : null}
+          {subIndicator === "KDJ" ? (
+            <p className="detail-sub" style={{ marginTop: 8 }}>Indikator KDJ belum tersedia — sedang dikembangkan.</p>
+          ) : null}
+
+          <IndicatorTabRow overlay={overlay} onOverlayChange={setOverlay} subIndicator={subIndicator} onSubChange={setSubIndicator} />
         </section>
 
         <aside className="panel-card price-list-card">
@@ -95,14 +112,14 @@ export default function DashboardPage() {
           <div className="price-list">
             {WATCHLIST.map((symbol) => {
               const t = tickers[symbol];
-              const isUp = (t?.change24h ?? 0) >= 0;
+              const symbolUp = (t?.change24h ?? 0) >= 0;
               return (
                 <button key={symbol} className="price-list-row" onClick={() => setFocusSymbol(symbol)}>
                   <CoinIcon symbol={symbol} size={22} />
                   <span className="price-list-symbol">{symbol.replace("USDT", "")}</span>
                   <span className="price-list-price">{t?.price ?? "—"}</span>
-                  <span className={isUp ? "price-list-change up" : "price-list-change down"}>
-                    {t?.change24h === null || t?.change24h === undefined ? "—" : `${isUp ? "+" : ""}${t.change24h.toFixed(2)}%`}
+                  <span className={symbolUp ? "price-list-change up" : "price-list-change down"}>
+                    {t?.change24h == null ? "—" : `${symbolUp ? "+" : ""}${t.change24h.toFixed(2)}%`}
                   </span>
                 </button>
               );
@@ -133,44 +150,6 @@ export default function DashboardPage() {
               </div>
             </>
           )}
-        </div>
-
-        <div className="panel-card stat-card">
-          <div className="stat-card-header">
-            <h4>AI Performance</h4>
-            <span className="stat-card-usd">since start</span>
-          </div>
-          {!performance || performance.insufficientData ? (
-            <p className="detail-sub">Insufficient historical data for reliable performance conclusions.</p>
-          ) : (
-            <>
-              <div className="stat-card-main">
-                <span className="stat-card-value">{performance.overall.totalPredictions} predictions</span>
-                <span className="stat-card-badge">{performance.overall.tpHitRate ?? "—"}% TP</span>
-              </div>
-              <div className="stat-card-sub-row">
-                <div className="stat-card-chip"><span>Avg R</span><strong>{performance.overall.averageR ?? "—"}R</strong></div>
-                <div className="stat-card-chip"><span>Avg Gain</span><strong>{performance.overall.averageMaxGainPct ?? "—"}%</strong></div>
-              </div>
-            </>
-          )}
-          <div className="stat-card-actions">
-            <Link href="/assistant" className="stat-card-btn primary">Analyze</Link>
-            <Link href="/risk" className="stat-card-btn">Risk Plan</Link>
-          </div>
-        </div>
-
-        <div className="panel-card stat-card">
-          <div className="stat-card-header">
-            <h4>Market Pulse — {focusSymbol}</h4>
-            {focusTicker ? (
-              <span className={(focusTicker.change24h ?? 0) >= 0 ? "stat-card-badge up" : "stat-card-badge down"}>
-                {(focusTicker.change24h ?? 0) >= 0 ? "+" : ""}{focusTicker.change24h?.toFixed(2) ?? "—"}%
-              </span>
-            ) : null}
-          </div>
-          <span className="stat-card-value big">{focusTicker?.price ?? "—"}</span>
-          <Sparkline data={sparklineData} color={(focusTicker?.change24h ?? 0) >= 0 ? "#16c784" : "#ea3943"} />
         </div>
       </div>
     </>

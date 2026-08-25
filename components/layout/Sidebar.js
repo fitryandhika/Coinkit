@@ -2,15 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Flame, ListFilter, ShieldCheck, Bot, History as HistoryIcon, TrendingUp } from "lucide-react";
+import { Home, Flame, ListFilter, History as HistoryIcon } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Home },
   { href: "/opportunities", label: "Opportunities", icon: Flame },
-  { href: "/scanner", label: "Scanner", icon: ListFilter },
-  { href: "/risk", label: "Risk Planner", icon: ShieldCheck },
-  { href: "/assistant", label: "AI Assistant", icon: Bot },
-  { href: "/history", label: "History", icon: HistoryIcon },
+  { href: "/scanner", label: "Screener", icon: ListFilter },
+  { href: "/screener-history", label: "Screener History", icon: HistoryIcon },
 ];
 
 export default function Sidebar() {
@@ -26,9 +24,6 @@ export default function Sidebar() {
           </Link>
         ))}
       </div>
-      <Link href="/performance" className={pathname === "/performance" ? "app-sidebar-item app-sidebar-bottom active" : "app-sidebar-item app-sidebar-bottom"} title="Performance">
-        <TrendingUp size={20} />
-      </Link>
     </nav>
   );
 }

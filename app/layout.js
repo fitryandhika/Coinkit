@@ -2,8 +2,8 @@ import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
 
 export const metadata = {
-  title: "CryptoAI",
-  description: "Bitget market analysis & manual trading assistant",
+  title: "Coinkit",
+  description: "Bitget market analysis & screener untuk trading manual",
 };
 
 export default function RootLayout({ children }) {

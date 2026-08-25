@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+/** Prediction sekarang dicatat otomatis server-side oleh Screener (bukan lagi
+ * dibuat lewat form di UI) — hook ini hanya untuk membaca & menandai TAKEN/SKIPPED. */
 export function usePredictions({ limit = 50 } = {}) {
   const [records, setRecords] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -19,28 +21,6 @@ export function usePredictions({ limit = 50 } = {}) {
   }, [limit]);
 
   useEffect(() => { refresh(); }, [refresh]);
-
-  const addPrediction = useCallback(async (decisionResult) => {
-    const res = await fetch("/api/predictions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        symbol: decisionResult.symbol,
-        market: decisionResult.market,
-        timeframe: decisionResult.timeframe,
-        decision: decisionResult.decision,
-        score: decisionResult.aiScore,
-        confidence: decisionResult.confidence,
-        tradePlan: decisionResult.tradePlan,
-        snapshot: decisionResult.snapshot,
-        reasoning: decisionResult.reasoning,
-      }),
-    });
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error || "Gagal menyimpan prediction");
-    await refresh();
-    return json.predictionId;
-  }, [refresh]);
 
   const markAction = useCallback(async (predictionId, action) => {
     await fetch(`/api/predictions/${predictionId}/action`, {
@@ -60,5 +40,5 @@ export function usePredictions({ limit = 50 } = {}) {
     await markAction(predictionId, "TAKEN");
   }, [markAction]);
 
-  return { records, loaded, refresh, addPrediction, markAction, saveManualTrade };
+  return { records, loaded, refresh, markAction, saveManualTrade };
 }

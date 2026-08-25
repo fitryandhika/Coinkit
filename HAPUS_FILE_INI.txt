@@ -1,0 +1,45 @@
+=====================================================================
+PENTING — DIBACA DULU SEBELUM COMMIT
+=====================================================================
+
+Zip ini cuma bisa MENAMBAH/MENIMPA file lewat `unzip -o`. File-file
+LAMA di bawah ini harus dihapus MANUAL karena sudah tidak dipakai lagi
+setelah redesign — kalau dibiarkan, itu jadi kode mati (dead code).
+
+Jalankan blok perintah ini di Termux, di folder ~/work/cryptoai,
+SETELAH kamu unzip file update ini (tapi SEBELUM git commit):
+
+rm -rf app/risk
+rm -rf app/assistant
+rm -rf app/history
+rm -rf app/performance
+rm -rf app/api/risk
+rm -rf app/api/ai
+rm -rf components/risk
+rm -rf components/ai
+rm -f components/MarketMode.js
+rm -f components/MarketTable.js
+rm -f components/PriceCard.js
+rm -f components/charts/Sparkline.js
+rm -rf lib/ai
+rm -f lib/risk/tradePlan.js
+rm -f lib/risk/validation.js
+rm -f lib/risk/leverage.js
+rm -f lib/risk/liquidation.js
+rm -f lib/risk/funding.js
+rm -f lib/risk/openInterest.js
+rm -f lib/risk/correlation.js
+rm -f lib/risk/riskScore.js
+rm -f lib/risk/blocker.js
+rm -f lib/risk/positionSize.js
+rm -f hooks/useTradingProfile.js
+rm -f test/risk.test.js
+
+Setelah itu baru:
+git add -A
+git commit -m "Redesign: rebrand Coinkit, hapus AI Assistant & Risk Planner, Screener jadi card, Screener History baru"
+git push
+
+Catatan: "git add -A" (bukan "git add .") supaya file yang DIHAPUS
+juga ikut tercatat di commit, bukan cuma yang ditambah.
+=====================================================================

@@ -151,11 +151,6 @@ function TechnicalReportBody({ report }) {
       {report.conflicts?.length > 0 ? (
         <div className="detail-reasons"><h4>Conflicts</h4><ul>{report.conflicts.map((c) => <li key={c}>{c}</li>)}</ul></div>
       ) : null}
-
-      <div className="chip-group" style={{ marginTop: 12 }}>
-        <a className="chip" href={`/risk?symbol=${report.symbol}&market=${report.market}&entryPrice=${report.price ?? ""}`}>Buat Trade Plan →</a>
-        <a className="chip" href={`/assistant?symbol=${report.symbol}&market=${report.market}`}>AI Trading Assistant →</a>
-      </div>
     </>
   );
 }
