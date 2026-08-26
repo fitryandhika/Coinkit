@@ -297,3 +297,6 @@ body {
 .status-icon-up { color: #16c784; }
 .status-icon-down { color: #ea3943; }
 .status-icon-neutral { color: #6b7280; }
+
+.opportunity-detail-wrap { margin-top: 16px; }
+.opportunity-detail-close-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
