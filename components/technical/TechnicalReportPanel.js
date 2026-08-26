@@ -137,7 +137,7 @@ function TechnicalReportBody({ report, candles }) {
         <p className="detail-sub">Sebagian indikator (mis. SMA200/ADX) belum tersedia — candle belum cukup.</p>
       ) : null}
 
-      <CandlestickChart candles={candles} height={180} overlay="MA" levels={levels} showPriceAxis />
+      <CandlestickChart candles={candles} height={180} overlay="MA" levels={levels} visibleCount={60} showPriceAxis />
       <p className="chart-legend-note">
         <span className="legend-dot" style={{ background: "#16c784" }} />
         Support
