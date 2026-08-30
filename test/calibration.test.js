@@ -5,6 +5,7 @@ import { computeRealizedR, roundTripFeePct, directionalPct, num } from "../lib/p
 import { spearman, expectancy, winRate, maxDrawdownR, longestLossStreak, isCorrelationMeaningful } from "../lib/performance/stats.js";
 import { buildSamples, buildScoreCalibration, buildComponentAttribution, suggestWeights, buildControlComparison } from "../lib/performance/calibration.js";
 import { PERFORMANCE_CONFIG } from "../lib/performance/config.js";
+import { toCsv, EXPORT_HEADERS, buildExportRows } from "../lib/performance/exportCsv.js";
 
 /* ---------------- helper pembuat baris ---------------- */
 let seq = 0;
@@ -275,4 +276,44 @@ test("Sub-score null tidak dihitung sebagai 0 di atribusi", () => {
   }];
   const attr = buildComponentAttribution(buildSamples(rows));
   assert.equal(attr.find((a) => a.key === "momentum_score").n, 0);
+});
+
+/* ================= export CSV ================= */
+
+test("CSV: escaping koma, kutip, dan newline", () => {
+  const csv = toCsv(["a", "b"], [["ada,koma", 'ada "kutip"'], ["ada\nnewline", "biasa"]]);
+  const body = csv.replace(/^\uFEFF/, "");
+  assert.match(body, /"ada,koma"/);
+  assert.match(body, /"ada ""kutip"""/);
+  assert.match(body, /"ada\nnewline"/);
+});
+
+test("CSV: diawali BOM supaya Excel membaca UTF-8", () => {
+  assert.equal(toCsv(["a"], [["x"]]).charCodeAt(0), 0xFEFF);
+});
+
+test("CSV: jumlah kolom tiap baris sama dengan header", () => {
+  const rows = [makeRow({ score: 74, realizedTargetR: 1.2 }), makeRow({ score: 45, realizedTargetR: -1, isControl: true })];
+  const samples = buildSamples(rows);
+  const exported = buildExportRows(samples, rows);
+  assert.equal(exported.length, 2);
+  exported.forEach((r) => assert.equal(r.length, EXPORT_HEADERS.length));
+});
+
+test("CSV: nilai kosong jadi sel kosong, bukan angka palsu", () => {
+  const rows = [{
+    prediction: { id: "e", timestamp: new Date().toISOString(), symbol: "A", market: "futures", timeframe: "1h", decision: "LONG", score: 70, entry: 100, stop_loss: 98, is_control: false },
+    snapshot: {},
+    outcome: { status: "COMPLETED", outcome: "EXPIRED", exit_price: null },
+  }];
+  const csv = toCsv(EXPORT_HEADERS, buildExportRows(buildSamples(rows), rows));
+  const cells = csv.replace(/^\uFEFF/, "").split("\r\n")[1].split(",");
+  const idx = EXPORT_HEADERS.indexOf("realized_r");
+  assert.equal(cells[idx], "", "realized_r harus kosong, bukan 0");
+});
+
+test("CSV: control group ikut terekspor (dibutuhkan untuk kalibrasi manual)", () => {
+  const rows = [makeRow({ score: 45, realizedTargetR: -0.5, isControl: true })];
+  const exported = buildExportRows(buildSamples(rows), rows);
+  assert.equal(exported[0][EXPORT_HEADERS.indexOf("is_control")], "1");
 });

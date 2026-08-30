@@ -1,58 +1,54 @@
 =====================================================================
-PENTING — DIBACA DULU SEBELUM COMMIT
+UPDATE: Perbaikan Tampilan Kalibrasi + Export CSV
 =====================================================================
 
-Zip ini cuma bisa MENAMBAH/MENIMPA file lewat `unzip -o`. File-file
-di bawah ini SUDAH DIHAPUS dari kode, tapi masih tertinggal di folder
-lokal kamu — harus dihapus MANUAL, kalau tidak jadi kode mati dan
-build bisa gagal karena import yang tidak ada.
+Update ini TIDAK menghapus file apa pun dan TIDAK butuh migrasi
+database baru. Cukup unzip lalu commit.
 
-Jalankan blok ini di Termux, di folder ~/work/cryptoai,
-SETELAH unzip tapi SEBELUM git commit:
+    cd ~/work/cryptoai
+    unzip -o ~/storage/downloads/Coinkit-update-2.zip
+    npm test          # harus 53 pass, 0 fail
+    git add -A
+    git commit -m "perbaikan tampilan kalibrasi + export CSV"
+    git push
 
 ---------------------------------------------------------------------
-# Fitur jurnal trading manual dibuang (tidak dipakai lagi)
-rm -f  lib/db/manualTrades.js
-rm -rf app/api/manual-trades
-rm -rf "app/api/predictions/[id]/action"
+ISI UPDATE
 ---------------------------------------------------------------------
 
-Cek tidak ada sisa referensi:
+1. Tabel tidak lagi menumpuk di kiri.
+   Penyebabnya .market-table dipaksa display:block (supaya bisa
+   di-scroll), efek sampingnya tabel berhenti melebar. Halaman
+   kalibrasi sekarang pakai .calib-table di dalam pembungkus
+   .table-scroll.
 
-    grep -rn "manualTrade\|manual-trades\|updateUserAction" \
-      --include=*.js app components lib hooks
+2. Kolom "Expectancy" dibuang.
+   Nilainya SELALU sama persis dengan Avg R secara matematis, jadi
+   hanya memakan ruang layar. Diganti Avg MFE.
 
-Kalau tidak keluar apa-apa, berarti bersih.
+3. Angka 0R tidak lagi berwarna hijau. Nol bukan untung.
+
+4. Label hasil dipendekkan: SL_HIT -> "Stop Loss",
+   TRAILING_STOP_HIT -> "Trailing Stop", dst.
+
+5. Kolom "Status" di tabel komponen dipindah ke bawah nama komponen
+   supaya tidak terpotong di layar sempit.
+
+6. Tabel "Per Arah" / "Per Timeframe" / "Per Jenis Hasil" sekarang
+   punya judul kolom pertama (dulu kosong).
+
+7. Ringkasan memakai kartu (tile), bukan baris teks berdempetan.
+
+8. BARU: tombol "Export CSV" di header Riwayat Setup.
+   Endpoint: /api/predictions/export
+   Isi: 41 kolom - prediction + snapshot + outcome + realized R,
+   TERMASUK control group. Sudah ber-BOM supaya Excel membaca UTF-8,
+   dan escaping koma/kutip/newline sudah diuji.
 
 =====================================================================
-MIGRASI DATABASE — WAJIB
+CATATAN
 =====================================================================
 
-Jalankan di Supabase SQL Editor:
-
-    db/migration_003_calibration.sql
-
-PERHATIAN: migrasi ini MENGHAPUS tabel `manual_trades` dan kolom
-`user_action` secara permanen. Backup dulu kalau ada data yang masih
-ingin disimpan.
-
-Kalau database kamu belum pernah dapat migrasi 002, jalankan
-`db/migration_002_trailing_sl.sql` lebih dulu.
-
-=====================================================================
-SETELAH DEPLOY
-=====================================================================
-
-1. Buka halaman "Kalibrasi" (dulu "Screener History").
-   Wajar kalau tertulis "DATA BELUM CUKUP" — vonis baru muncul
-   setelah 40 setup selesai dievaluasi.
-
-2. Sub-score baru mulai tercatat untuk setup SETELAH migrasi.
-   Tabel "Kontribusi Komponen" akan kosong dulu, itu normal.
-
-3. Pastikan cron worker evaluate-predictions masih jalan. Tanpa itu
-   tidak ada setup yang pernah selesai dievaluasi, dan halaman
-   Kalibrasi akan kosong selamanya.
-
-4. Opsional: `recharts` sudah tidak dipakai sama sekali. Kalau mau
-   bundle lebih kecil: npm uninstall recharts
+File CSV berisi sub-score (momentum_score, volume_score, dst).
+Untuk setup yang dicatat SEBELUM migrasi 003, kolom itu kosong.
+Itu normal - bukan bug.
