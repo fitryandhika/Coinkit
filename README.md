@@ -48,6 +48,8 @@ di SQL Editor. Semua aman dijalankan berkali-kali:
 
 1. `db/migration_002_trailing_sl.sql` — kolom trailing stop & korelasi BTC.
 2. `db/migration_003_calibration.sql` — **mesin kalibrasi score**.
+3. `db/migration_004_entry_quality.sql` — **kelayakan harga entry** (entry_score,
+   risk_reward, chase_gap_pct, extension_atr). Tidak menghapus apa pun.
 
 > **Perhatian pada migrasi 003:** migrasi ini MENGHAPUS tabel `manual_trades`
 > dan kolom `user_action` (fitur jurnal trading manual dibuang). Kalau ada data
@@ -96,7 +98,9 @@ fallback). Untuk pemantauan lebih cepat (menit-an), daftar
 - **Opportunities (`/opportunities`)** — ranking coin berdasarkan momentum,
   volume, liquidity, breakout.
 - **Screener (`/scanner`)** — kartu per-coin dengan arah (BULLISH/BEARISH),
-  alasan, level Entry/SL/TP, dan korelasi terhadap BTC.
+  alasan, level Entry/SL/TP, korelasi terhadap BTC, dan **kelayakan harga
+  entry** (lihat bagian 7b). Daftar diurutkan "Entry terbaik" dan secara
+  default menyembunyikan coin yang harganya sudah kemahalan.
 - **Screener History (`/screener-history`)** — ringkasan performa (TP hit
   rate, avg R, opportunity capture) + tabel riwayat setiap setup yang
   otomatis tercatat dari Screener (score ≥ 60), dibandingkan dengan
@@ -126,6 +130,50 @@ memakai SL tetap seperti semula, tidak berubah.
 
 ---
 
+## 7b. Kelayakan Harga Entry (Entry Quality)
+
+Skor screener menilai **seberapa kuat** sebuah gerakan. Itu tidak sama dengan
+**seberapa layak harganya dimasuki sekarang** — coin yang sudah lari 40% justru
+mendapat momentum score paling tinggi, padahal itu entry paling berisiko:
+jarak ke stop loss membesar sementara ruang ke target menyempit.
+
+`lib/screener/entryQuality.js` mengukur POSISI harga, bukan kekuatannya. Semua
+jarak dinyatakan dalam satuan ATR (bukan persen mentah), supaya adil untuk coin
+volatil maupun coin kalem — 5% di BTC dan 5% di altcoin receh bukan jarak yang
+sama.
+
+| Komponen | Bobot | Yang diukur |
+|---|---|---|
+| Extension | 30% | Jarak harga ke EMA20. Mendeteksi lilin parabolik. |
+| Chase | 25% | Jarak harga MELEWATI level pemicu (previous high/low). Menangkap "telat masuk setelah breakout". |
+| Leg | 20% | Panjang kaki gerakan dari swing terakhir. |
+| Risk:Reward | 25% | (TP1 − harga sekarang) / (harga sekarang − SL). Masih ada ruang untung, atau tinggal sisa? |
+
+Hasilnya `entryScore` 0–100 dan label:
+
+- **GOOD** (≥ 70) — harga masih di zona wajar.
+- **FAIR** (≥ 52) — masih bisa dipertimbangkan.
+- **EXTENDED** (≥ 32) — sudah agak jauh, penalti −8 poin.
+- **OVEREXTENDED** (< 32) — kemahalan, penalti −20 poin.
+
+Pengaruhnya ke aplikasi:
+
+1. **Penalti masuk ke screenerScore**, jadi coin kemahalan turun peringkat
+   dengan sendirinya — bukan sekadar disembunyikan.
+2. **Urutan default "Entry terbaik"** = 60% skor setup + 40% kelayakan harga.
+   Bisa diganti ke "Skor setup" atau "Harga termurah" lewat dropdown Urutkan.
+3. **Filter "Kualitas Entry"** (default: sembunyikan yang kemahalan) dan filter
+   **Min. R:R**. Jumlah coin yang tersaring ditampilkan di bawah filter.
+4. **Saran harga retest** — untuk setup yang sudah terlanjur jauh, kartu
+   menampilkan harga pullback yang lebih sehat untuk ditunggu (diambil dari
+   EMA20, level yang baru ditembus, atau harga − 1 ATR; mana yang paling dekat).
+5. **Auto-record tidak mencatat setup OVEREXTENDED** sebagai rekomendasi, tapi
+   masih mengizinkannya masuk *control group*. Ini disengaja: mesin kalibrasi
+   jadi bisa MEMBUKTIKAN apakah menyaringnya memang menaikkan win rate, bukan
+   sekadar asumsi.
+
+---
+
 ## 8. Prinsip Keamanan
 
 - Tidak ada API key trading yang diminta di mana pun dalam aplikasi ini.
@@ -152,6 +200,7 @@ coinkit/
 ├── db/schema.sql              → Skema database (instalasi baru)
 ├── db/migration_002_trailing_sl.sql → Migrasi: trailing stop
 ├── db/migration_003_calibration.sql → Migrasi: kalibrasi score (drop jurnal)
+├── db/migration_004_entry_quality.sql → Migrasi: kelayakan harga entry
 └── test/                       → Unit test (jalankan: npm test)
 ```
 

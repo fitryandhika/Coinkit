@@ -1,54 +1,135 @@
 =====================================================================
-UPDATE: Perbaikan Tampilan Kalibrasi + Export CSV
+UPDATE: Entry Quality — saring coin yang harganya sudah kemahalan
 =====================================================================
 
-Update ini TIDAK menghapus file apa pun dan TIDAK butuh migrasi
-database baru. Cukup unzip lalu commit.
+Update ini TIDAK menghapus file apa pun.
+TAPI ada SATU migrasi database baru yang harus dijalankan.
+
+---------------------------------------------------------------------
+CARA PASANG (Termux)
+---------------------------------------------------------------------
 
     cd ~/work/cryptoai
-    unzip -o ~/storage/downloads/Coinkit-update-2.zip
-    npm test          # harus 53 pass, 0 fail
+    unzip -o ~/storage/downloads/Coinkit-entry-quality.zip
+    npm test          # harus 66 pass, 0 fail
     git add -A
-    git commit -m "perbaikan tampilan kalibrasi + export CSV"
+    git commit -m "entry quality: saring & urutkan setup yang harganya masih layak"
     git push
 
+Kalau nama folder kerja Anda bukan ~/work/cryptoai, sesuaikan.
+Pastikan Anda berada DI DALAM folder project sebelum unzip -o,
+karena isi zip langsung berupa app/, lib/, components/, db/.
+
 ---------------------------------------------------------------------
+LANGKAH WAJIB: MIGRASI DATABASE
+---------------------------------------------------------------------
+
+Buka Supabase -> SQL Editor -> tempel isi file:
+
+    db/migration_004_entry_quality.sql
+
+Migrasi ini HANYA MENAMBAH kolom (entry_score, entry_label, risk_reward,
+chase_gap_pct, extension_atr). Tidak ada tabel/kolom yang dihapus.
+Aman dijalankan berkali-kali.
+
+Kalau migrasi ini belum dijalankan, aplikasi tetap berjalan normal,
+tapi pencatatan setup baru akan GAGAL menyimpan snapshot karena
+kolomnya belum ada. Jadi jalankan sebelum dipakai serius.
+
+=====================================================================
 ISI UPDATE
+=====================================================================
+
+MASALAH YANG DIPERBAIKI
+Skor screener lama menilai SEBERAPA KUAT sebuah gerakan. Itu bukan hal
+yang sama dengan SEBERAPA LAYAK harganya dimasuki sekarang. Akibatnya
+coin yang sudah lari 40% justru mendapat momentum score paling tinggi,
+padahal itu justru entry paling berisiko.
+
+1. MODUL BARU: lib/screener/entryQuality.js
+   Mengukur POSISI harga, bukan kekuatannya. Semua jarak dalam satuan
+   ATR (bukan persen mentah), supaya adil antara BTC dan altcoin receh.
+
+     - Extension   30%  jarak harga ke EMA20 (deteksi lilin parabolik)
+     - Chase       25%  jarak harga MELEWATI level pemicu
+                        (ini yang menangkap "telat masuk setelah breakout")
+     - Leg         20%  panjang kaki gerakan dari swing terakhir
+     - Risk:Reward 25%  (TP1 - harga sekarang) / (harga sekarang - SL)
+
+   Hasil: entryScore 0-100 + label
+     GOOD >= 70 | FAIR >= 52 | EXTENDED >= 32 | OVEREXTENDED < 32
+
+   Hasil uji pada tiga skenario sintetis:
+     baru tembus level (+1.5%)        -> GOOD          skor 86
+     naik 45% dalam 6 candle          -> OVEREXTENDED  skor 19
+     naik 45% pelan dalam 30 candle   -> EXTENDED      skor 39
+
+2. PENALTI MASUK KE SKOR SCREENER
+   OVEREXTENDED -20 poin, EXTENDED -8 poin. Jadi coin kemahalan turun
+   peringkat dengan sendirinya, bukan sekadar disembunyikan.
+
+3. URUTAN DEFAULT "ENTRY TERBAIK"
+   60% skor setup + 40% kelayakan harga. Ada dropdown Urutkan untuk
+   kembali ke "Skor setup" atau "Harga termurah".
+
+4. FILTER BARU
+   "Kualitas Entry" (default: Sembunyikan yang kemahalan) dan "Min. R:R".
+   Di bawah filter muncul catatan "N coin disembunyikan..." supaya Anda
+   tahu ada yang tersaring, bukan hilang diam-diam.
+
+5. KARTU SCREENER
+   Badge KEMAHALAN / AGAK JAUH / ENTRY WAJAR / ENTRY IDEAL, nilai R:R,
+   dan SARAN HARGA RETEST untuk setup yang sudah terlanjur jauh:
+   "Entry lebih sehat kalau menunggu retest di sekitar X (4.3% dari
+   harga sekarang)".
+
+6. AUTO-RECORD
+   Setup OVEREXTENDED tidak lagi dicatat sebagai rekomendasi, tapi TETAP
+   boleh masuk control group. Ini disengaja: mesin kalibrasi jadi bisa
+   MEMBUKTIKAN apakah menyaringnya memang menaikkan win rate, bukan
+   sekadar asumsi.
+
+7. BUG LAMA DIPERBAIKI: lib/db/snapshots.js
+   autoRecord mengirim `volume` dan `volumeRatio` sebagai angka datar,
+   tapi snapshots.js membacanya sebagai objek (snapshot.volume?.volumeRatio).
+   Akibatnya kolom volume dan volume_ratio SELALU tersimpan null selama
+   ini. Sudah diperbaiki, dan ini memengaruhi kualitas data kalibrasi
+   Anda ke depan.
+
+---------------------------------------------------------------------
+FILE YANG BERUBAH
 ---------------------------------------------------------------------
 
-1. Tabel tidak lagi menumpuk di kiri.
-   Penyebabnya .market-table dipaksa display:block (supaya bisa
-   di-scroll), efek sampingnya tabel berhenti melebar. Halaman
-   kalibrasi sekarang pakai .calib-table di dalam pembungkus
-   .table-scroll.
+BARU:
+  lib/screener/entryQuality.js        mesin penilaian kelayakan harga
+  lib/screener/clientFilters.js       filter & urutan bersama 2 halaman
+  db/migration_004_entry_quality.sql  migrasi database
+  test/entryQuality.test.js           13 test baru
 
-2. Kolom "Expectancy" dibuang.
-   Nilainya SELALU sama persis dengan Avg R secara matematis, jadi
-   hanya memakan ruang layar. Diganti Avg MFE.
+DIUBAH:
+  lib/screener/config.js              ambang & bobot entry quality
+  lib/screener/ranking.js             penalti entry kemahalan
+  lib/screener/reasons.js             kalimat alasan soal harga
+  lib/screener/screener.js            urutan hitung: tradeIdea -> entry -> skor
+  lib/screener/autoRecord.js          jangan catat setup kemahalan
+  lib/db/snapshots.js                 kolom baru + perbaikan bug volume
+  components/screener/ScreenerCard.js     badge, R:R, saran retest
+  components/screener/ScreenerFilters.js  filter Kualitas Entry & Min. R:R
+  components/screener/OpportunityTable.js kolom Entry & R:R
+  app/scanner/page.js                 dropdown urutan + catatan tersaring
+  app/opportunities/page.js           pakai filter bersama
+  app/globals.css                     gaya kotak kelayakan harga
+  README.md                           bagian 7b: Kelayakan Harga Entry
 
-3. Angka 0R tidak lagi berwarna hijau. Nol bukan untung.
-
-4. Label hasil dipendekkan: SL_HIT -> "Stop Loss",
-   TRAILING_STOP_HIT -> "Trailing Stop", dst.
-
-5. Kolom "Status" di tabel komponen dipindah ke bawah nama komponen
-   supaya tidak terpotong di layar sempit.
-
-6. Tabel "Per Arah" / "Per Timeframe" / "Per Jenis Hasil" sekarang
-   punya judul kolom pertama (dulu kosong).
-
-7. Ringkasan memakai kartu (tile), bukan baris teks berdempetan.
-
-8. BARU: tombol "Export CSV" di header Riwayat Setup.
-   Endpoint: /api/predictions/export
-   Isi: 41 kolom - prediction + snapshot + outcome + realized R,
-   TERMASUK control group. Sudah ber-BOM supaya Excel membaca UTF-8,
-   dan escaping koma/kutip/newline sudah diuji.
-
-=====================================================================
+---------------------------------------------------------------------
 CATATAN
-=====================================================================
+---------------------------------------------------------------------
 
-File CSV berisi sub-score (momentum_score, volume_score, dst).
-Untuk setup yang dicatat SEBELUM migrasi 003, kolom itu kosong.
-Itu normal - bukan bug.
+Setup yang dicatat SEBELUM migrasi 004 akan punya kolom entry_score
+kosong. Itu normal, bukan bug. Perbandingan "entry murah vs kemahalan"
+di halaman kalibrasi baru bisa dinilai setelah terkumpul cukup setup
+BARU dari kedua kelompok.
+
+Angka ambang (0.8 / 3.5 ATR untuk extension, dst) ada di
+lib/screener/config.js bagian "Entry Quality" kalau nanti mau
+dikencangkan atau dilonggarkan setelah melihat hasil nyata.

@@ -15,9 +15,20 @@ const DIRECTION_CONFIG = {
   NEUTRAL: { label: "NEUTRAL", color: "#848e9c" },
 };
 
+// Label kelayakan HARGA — sengaja dipisah dari badge arah, karena keduanya
+// menjawab pertanyaan berbeda: arah = "ke mana", entry = "masih layak masuk?".
+const ENTRY_CONFIG = {
+  GOOD: { label: "ENTRY IDEAL", color: "#16c784" },
+  FAIR: { label: "ENTRY WAJAR", color: "#a6b0c3" },
+  EXTENDED: { label: "AGAK JAUH", color: "#f0b90b" },
+  OVEREXTENDED: { label: "KEMAHALAN", color: "#ea3943" },
+};
+
 export default function ScreenerCard({ entry, mode }) {
   const [showTechnical, setShowTechnical] = useState(false);
   const dirConfig = DIRECTION_CONFIG[entry.direction] || DIRECTION_CONFIG.NEUTRAL;
+  const entryConfig = ENTRY_CONFIG[entry.entryLabel] || null;
+  const eq = entry.entryQuality || {};
 
   return (
     <div className="screener-card">
@@ -30,6 +41,15 @@ export default function ScreenerCard({ entry, mode }) {
         <span className="direction-badge" style={{ color: dirConfig.color, borderColor: dirConfig.color }}>
           {dirConfig.label}
         </span>
+        {entryConfig ? (
+          <span
+            className="direction-badge"
+            style={{ color: entryConfig.color, borderColor: entryConfig.color }}
+            title="Seberapa layak harga ini dimasuki sekarang"
+          >
+            {entryConfig.label}
+          </span>
+        ) : null}
         <span className="score-badge-lg">{formatNumber(entry.screenerScore, { maximumFractionDigits: 0 })}</span>
       </div>
 
@@ -58,6 +78,28 @@ export default function ScreenerCard({ entry, mode }) {
       ) : (
         <p className="detail-sub">{entry.tradeIdea?.reason || "Level entry belum bisa ditentukan."}</p>
       )}
+
+      {Number.isFinite(entry.entryScore) ? (
+        <div className="entry-quality-box" style={{ borderLeft: `3px solid ${entryConfig?.color || "#848e9c"}` }}>
+          <p className="entry-quality-head">
+            Kelayakan harga: <strong style={{ color: entryConfig?.color }}>{entry.entryScore.toFixed(0)}/100</strong>
+            {Number.isFinite(eq.riskReward) ? <> · R:R ke TP1 <strong>{eq.riskReward.toFixed(2)}</strong></> : null}
+          </p>
+          {Number.isFinite(eq.chaseGapPct) && eq.chaseGapPct > 0 ? (
+            <p className="detail-sub" style={{ marginBottom: 0 }}>
+              Sudah {eq.chaseGapPct.toFixed(1)}% melewati level pemicu
+              {Number.isFinite(eq.extensionAtr) ? `, ${eq.extensionAtr.toFixed(1)}x ATR dari harga rata-rata` : ""}.
+            </p>
+          ) : null}
+          {Number.isFinite(eq.betterEntry) ? (
+            <p className="detail-sub" style={{ marginBottom: 0 }}>
+              Entry lebih sehat kalau menunggu retest di sekitar{" "}
+              <strong>{formatNumber(eq.betterEntry, { maximumFractionDigits: 8 })}</strong>
+              {Number.isFinite(eq.betterEntryGapPct) ? ` (${Math.abs(eq.betterEntryGapPct).toFixed(1)}% dari harga sekarang)` : ""}.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <p className="score-note">
         Level ini murni referensi teknikal dari support/resistance &amp; momentum saat ini — bukan jaminan profit.

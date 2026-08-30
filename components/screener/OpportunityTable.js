@@ -16,12 +16,29 @@ function statusLabel(entry) {
   return "Normal";
 }
 
+const ENTRY_LABEL_TEXT = {
+  GOOD: "Ideal",
+  FAIR: "Wajar",
+  EXTENDED: "Agak jauh",
+  OVEREXTENDED: "Kemahalan",
+  UNKNOWN: "—",
+};
+
+const ENTRY_LABEL_COLOR = {
+  GOOD: "#16c784",
+  FAIR: "#a6b0c3",
+  EXTENDED: "#f0b90b",
+  OVEREXTENDED: "#ea3943",
+};
+
 const COLUMNS = [
   { key: "rank", label: "Rank" },
   { key: "symbol", label: "Symbol" },
   { key: "price", label: "Price" },
   { key: "change24h", label: "24h" },
   { key: "screenerScore", label: "Score" },
+  { key: "entryScore", label: "Entry" },
+  { key: "riskReward", label: "R:R" },
   { key: "momentumScore", label: "Momentum" },
   { key: "volumeRatio", label: "Volume" },
   { key: "liquidityLabel", label: "Liquidity" },
@@ -56,6 +73,11 @@ export default function OpportunityTable({ results, sortKey, sortDir, onSort, on
               {entry.change24h === null ? "—" : `${entry.change24h >= 0 ? "+" : ""}${entry.change24h.toFixed(2)}%`}
             </td>
             <td>{formatNumber(entry.screenerScore, { maximumFractionDigits: 0 })}</td>
+            <td style={{ color: ENTRY_LABEL_COLOR[entry.entryLabel] || undefined }}>
+              {ENTRY_LABEL_TEXT[entry.entryLabel] || "—"}
+              {Number.isFinite(entry.entryScore) ? ` (${entry.entryScore.toFixed(0)})` : ""}
+            </td>
+            <td>{Number.isFinite(entry.riskReward) ? entry.riskReward.toFixed(2) : "—"}</td>
             <td>{entry.momentumLabel || "—"}</td>
             <td>{entry.volumeRatio !== null ? `${entry.volumeRatio.toFixed(2)}x` : "—"}</td>
             <td>{entry.liquidityLabel || "—"}</td>

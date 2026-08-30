@@ -6,14 +6,21 @@ import TimeframeSelector from "@/components/screener/TimeframeSelector";
 import ScreenerFilters from "@/components/screener/ScreenerFilters";
 import ScreenerCard from "@/components/screener/ScreenerCard";
 import { TIMEFRAMES } from "@/lib/bitget/constants";
+import {
+  DEFAULT_SCREENER_FILTERS,
+  SORT_MODES,
+  applyScreenerFilters,
+  sortScreenerResults,
+} from "@/lib/screener/clientFilters";
 
 const POLL_INTERVAL_MS = 20000;
-const DEFAULT_FILTERS = { minScore: 0, minVolume: 0, minLiquidity: "ANY", maxSpread: null };
+const DEFAULT_FILTERS = DEFAULT_SCREENER_FILTERS;
 
 export default function ScreenerPage() {
   const [mode, setMode] = useState("spot");
   const [timeframe, setTimeframe] = useState("1h");
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [sortKey, setSortKey] = useState("entryAdjustedScore");
 
   const [results, setResults] = useState([]);
   const [status, setStatus] = useState("connecting");
@@ -62,22 +69,13 @@ export default function ScreenerPage() {
     };
   }, [loadScreener]);
 
-  const filteredResults = useMemo(() => {
-    const liquidityOrder = { LOW: 0, MEDIUM: 1, HIGH: 2, UNKNOWN: -1 };
-    return results
-      .filter((r) => {
-        if ((r.screenerScore ?? -1) < filters.minScore) return false;
-        if ((r.volume24h ?? 0) < filters.minVolume) return false;
-        if (filters.minLiquidity !== "ANY") {
-          const rank = liquidityOrder[r.liquidityLabel] ?? -1;
-          const minRank = liquidityOrder[filters.minLiquidity] ?? 0;
-          if (rank < minRank) return false;
-        }
-        if (filters.maxSpread !== null && r.spreadPct !== null && r.spreadPct > filters.maxSpread) return false;
-        return true;
-      })
-      .sort((a, b) => (b.screenerScore ?? -1) - (a.screenerScore ?? -1));
-  }, [results, filters]);
+  const { filteredResults, hiddenCount } = useMemo(() => {
+    const kept = applyScreenerFilters(results, filters);
+    return {
+      filteredResults: sortScreenerResults(kept, sortKey, "desc"),
+      hiddenCount: results.length - kept.length,
+    };
+  }, [results, filters, sortKey]);
 
   return (
     <>
@@ -89,6 +87,22 @@ export default function ScreenerPage() {
 
       <div className="panel-card">
         <ScreenerFilters filters={filters} onChange={setFilters} />
+        <div className="filter-bar" style={{ marginTop: 8 }}>
+          <div className="filter-field">
+            <label>Urutkan</label>
+            <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+              {SORT_MODES.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {hiddenCount > 0 ? (
+          <p className="detail-sub" style={{ marginTop: 8, marginBottom: 0 }}>
+            {hiddenCount} coin disembunyikan karena harganya sudah lewat zona entry yang wajar.
+            Ubah filter &quot;Kualitas Entry&quot; kalau tetap ingin melihatnya.
+          </p>
+        ) : null}
       </div>
 
       <div className="screener-card-list">
@@ -100,8 +114,10 @@ export default function ScreenerPage() {
       </div>
 
       <p className="detail-sub" style={{ marginTop: 16 }}>
-        Setup dengan score ≥ 60 otomatis dicatat sebagai riwayat untuk dibandingkan dengan pergerakan market
-        sesungguhnya — lihat hasilnya di menu Screener History.
+        Daftar diurutkan berdasarkan kombinasi kekuatan setup dan kelayakan harga saat ini, jadi coin yang
+        sudah terlanjur melambung turun peringkatnya sendiri. Setup dengan score ≥ 60 yang harganya belum
+        kemahalan otomatis dicatat sebagai riwayat untuk dibandingkan dengan pergerakan market sesungguhnya —
+        lihat hasilnya di menu Screener History.
       </p>
     </>
   );
