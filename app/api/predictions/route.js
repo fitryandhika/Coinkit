@@ -9,10 +9,11 @@ export async function GET(request) {
   const symbol = searchParams.get("symbol") || undefined;
   const decision = searchParams.get("decision") || undefined;
   const status = searchParams.get("status") || undefined;
+  const includeControl = searchParams.get("includeControl") === "1";
   const limit = Number(searchParams.get("limit") || 50);
 
   try {
-    const predictions = await listPredictions({ symbol, decision, status, limit });
+    const predictions = await listPredictions({ symbol, decision, status, includeControl, limit });
     return NextResponse.json({ success: true, predictions });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

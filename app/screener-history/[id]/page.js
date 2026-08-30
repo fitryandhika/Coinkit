@@ -24,7 +24,7 @@ export default function ScreenerHistoryDetailPage() {
   if (status === "loading") return <><Topbar title="Detail Setup" /><p className="detail-sub">Memuat...</p></>;
   if (status === "error" || !data) return <><Topbar title="Detail Setup" /><p className="error-banner">Data tidak ditemukan.</p></>;
 
-  const { prediction, outcome, manualTrade } = data;
+  const { prediction, outcome } = data;
 
   return (
     <>
@@ -94,17 +94,6 @@ export default function ScreenerHistoryDetailPage() {
           </>
         ) : null}
 
-        {manualTrade ? (
-          <>
-            <h4 className="section-title">Trade Manual Anda</h4>
-            <div className="detail-grid">
-              <div><span>Actual Entry</span><strong>{formatNumber(manualTrade.actual_entry, { maximumFractionDigits: 8 })}</strong></div>
-              <div><span>Actual Exit</span><strong>{formatNumber(manualTrade.actual_exit, { maximumFractionDigits: 8 })}</strong></div>
-              <div><span>Realized P/L</span><strong>{formatNumber(manualTrade.realized_pnl, { maximumFractionDigits: 4 })}</strong></div>
-              <div><span>Realized P/L %</span><strong>{formatNumber(manualTrade.realized_pnl_pct, { maximumFractionDigits: 2 })}%</strong></div>
-            </div>
-          </>
-        ) : null}
       </div>
     </>
   );

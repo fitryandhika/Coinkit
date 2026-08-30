@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { runScreenerCached } from "@/lib/screener/screener";
 import { TIMEFRAMES } from "@/lib/bitget/constants";
 
-export const maxDuration = 30;
+// Universe naik 40 -> 120 coin, jadi satu run penuh butuh waktu lebih lama.
+// Hasilnya di-cache 45 detik (SCREENER_CACHE_TTL_MS), jadi tidak setiap request kena ini.
+export const maxDuration = 60;
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);

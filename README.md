@@ -43,9 +43,15 @@ Kalau hanya punya HP: pakai Termux (`pkg install git unzip`, extract zip,
 2. Buka **SQL Editor**, jalankan seluruh isi `db/schema.sql`.
 3. Buka **Project Settings → API**, catat **Project URL** dan **service_role key**.
 
-**Kalau sudah punya database dari versi sebelumnya** (sebelum fitur trailing
-stop): jalankan `db/migration_002_trailing_sl.sql` juga di SQL Editor — aman
-dijalankan berkali-kali, hanya menambah kolom baru tanpa menghapus data lama.
+**Kalau sudah punya database dari versi sebelumnya**, jalankan migrasi berurutan
+di SQL Editor. Semua aman dijalankan berkali-kali:
+
+1. `db/migration_002_trailing_sl.sql` — kolom trailing stop & korelasi BTC.
+2. `db/migration_003_calibration.sql` — **mesin kalibrasi score**.
+
+> **Perhatian pada migrasi 003:** migrasi ini MENGHAPUS tabel `manual_trades`
+> dan kolom `user_action` (fitur jurnal trading manual dibuang). Kalau ada data
+> jurnal yang masih ingin disimpan, backup dulu sebelum menjalankannya.
 
 **PENTING:** `service_role key` punya akses penuh ke database — hanya boleh
 masuk sebagai Environment Variable di Vercel, tidak pernah di kode frontend.
@@ -141,12 +147,36 @@ coinkit/
 │   ├── technical/               → Technical Analysis Engine
 │   ├── risk/                     → stopLoss.js, takeProfit.js (dipakai Screener)
 │   ├── outcome/                    → Outcome monitoring (SL tetap + trailing)
-│   ├── performance/                  → Agregasi statistik performa
+│   ├── performance/                  → Mesin kalibrasi score (realized R, fee, atribusi)
 │   └── db/                             → Akses Supabase
 ├── db/schema.sql              → Skema database (instalasi baru)
-├── db/migration_002_trailing_sl.sql → Migrasi untuk database lama
+├── db/migration_002_trailing_sl.sql → Migrasi: trailing stop
+├── db/migration_003_calibration.sql → Migrasi: kalibrasi score (drop jurnal)
 └── test/                       → Unit test (jalankan: npm test)
 ```
+
+## 9b. Cara Membaca Halaman Kalibrasi
+
+Halaman **Kalibrasi** menjawab satu pertanyaan: apakah Screener Score benar-benar
+memprediksi hasil di market, atau cuma angka yang terlihat meyakinkan.
+
+- **Vonis** — korelasi peringkat (Spearman) antara score dan hasil nyata, plus
+  uji signifikansi kasar. `NO_EDGE` berarti score belum terbukti berguna; itu
+  hasil yang sah, bukan error.
+- **Hasil per Rentang Score** — kalau score bekerja, kolom Avg R harus naik dari
+  bucket 60-69 ke 90-100. Baris redup = sampel masih di bawah 10.
+- **Pembanding (control group)** — sekitar 6% setup yang TIDAK lolos ambang 60
+  tetap dicatat diam-diam sebagai pembanding acak. Tanpa ini, win rate 55% tidak
+  bisa dinilai: bisa saja entry acak juga menghasilkan 55%.
+- **Kontribusi Komponen** — korelasi tiap sub-score terhadap hasil, lalu usulan
+  bobot. Usulan TIDAK diterapkan otomatis; ubah manual di
+  `lib/screener/config.js` kalau Anda setuju.
+
+Semua nilai R sudah dikurangi fee taker Bitget (spot 0.1%, futures 0.06% per
+sisi). Vonis baru muncul setelah 40 setup selesai dievaluasi; usulan bobot
+setelah 80 setup per komponen.
+
+---
 
 ## 10. Menjalankan Lokal
 

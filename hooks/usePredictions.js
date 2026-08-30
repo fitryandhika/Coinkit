@@ -2,15 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-/** Prediction sekarang dicatat otomatis server-side oleh Screener (bukan lagi
- * dibuat lewat form di UI) — hook ini hanya untuk membaca & menandai TAKEN/SKIPPED. */
-export function usePredictions({ limit = 50 } = {}) {
+/** Prediction dicatat otomatis server-side oleh Screener. Hook ini murni baca —
+ * tidak ada lagi pencatatan trade manual; fokus aplikasi sekarang adalah
+ * membandingkan prediksi screener dengan pergerakan market yang sesungguhnya. */
+export function usePredictions({ limit = 50, includeControl = false } = {}) {
   const [records, setRecords] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/predictions?limit=${limit}`);
+      const res = await fetch(`/api/predictions?limit=${limit}&includeControl=${includeControl ? "1" : "0"}`);
       const json = await res.json();
       if (json.success) setRecords(json.predictions);
     } catch (err) {
@@ -18,27 +19,9 @@ export function usePredictions({ limit = 50 } = {}) {
     } finally {
       setLoaded(true);
     }
-  }, [limit]);
+  }, [limit, includeControl]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const markAction = useCallback(async (predictionId, action) => {
-    await fetch(`/api/predictions/${predictionId}/action`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    await refresh();
-  }, [refresh]);
-
-  const saveManualTrade = useCallback(async (predictionId, journalData) => {
-    await fetch("/api/manual-trades", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ predictionId, ...journalData }),
-    });
-    await markAction(predictionId, "TAKEN");
-  }, [markAction]);
-
-  return { records, loaded, refresh, markAction, saveManualTrade };
+  return { records, loaded, refresh };
 }

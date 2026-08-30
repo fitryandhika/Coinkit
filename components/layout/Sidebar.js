@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Home },
   { href: "/opportunities", label: "Opportunities", icon: Flame },
   { href: "/scanner", label: "Screener", icon: ListFilter },
-  { href: "/screener-history", label: "Screener History", icon: HistoryIcon },
+  { href: "/screener-history", label: "Kalibrasi", icon: HistoryIcon },
 ];
 
 export default function Sidebar() {

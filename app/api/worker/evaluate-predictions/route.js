@@ -86,6 +86,13 @@ async function runWorker(request) {
       const finished = evalResult.outcome !== "PENDING" || expired;
       const finalOutcome = evalResult.outcome !== "PENDING" ? evalResult.outcome : expired ? "EXPIRED" : "PENDING";
 
+      // Setup yang EXPIRED tanpa menyentuh SL/TP dulu tidak pernah menyimpan harga
+      // keluar, sehingga hasil nyatanya mustahil dihitung dan setup itu hilang dari
+      // kalibrasi. Sekarang harga close candle terakhir dipakai sebagai harga keluar.
+      const lastClose = candles.length ? candles[candles.length - 1].close : null;
+      const resolvedExitPrice =
+        evalResult.exitPrice ?? (finalOutcome === "EXPIRED" && Number.isFinite(lastClose) ? lastClose : null);
+
       await updateOutcome(prediction.id, {
         maximum_gain_pct: evalResult.maximumGainPct,
         maximum_drawdown_pct: evalResult.maximumDrawdownPct,
@@ -97,7 +104,7 @@ async function runWorker(request) {
         tp2_hit_at: evalResult.tp2HitAt ? new Date(evalResult.tp2HitAt).toISOString() : null,
         tp3_hit_at: evalResult.tp3HitAt ? new Date(evalResult.tp3HitAt).toISOString() : null,
         sl_hit_at: evalResult.slHitAt ? new Date(evalResult.slHitAt).toISOString() : null,
-        exit_price: evalResult.exitPrice ?? null,
+        exit_price: resolvedExitPrice,
         breakeven_activated: evalResult.breakevenActivated ?? false,
         final_stop_price: evalResult.finalStopPrice ?? null,
         outcome: finalOutcome,
