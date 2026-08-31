@@ -24,6 +24,9 @@ create table if not exists ai_predictions (
   btc_correlation numeric,
   trail_multiplier numeric,
   is_control boolean not null default false,
+  -- Versi aturan pencatatan + evaluasi. v1 = sebelum perbaikan jendela evaluasi,
+  -- v2 = sesudah. Dipisah supaya kalibrasi tidak mencampur dua dunia.
+  ruleset_version integer not null default 1,
   status text not null default 'PENDING'
 );
 
@@ -31,6 +34,7 @@ create index if not exists idx_ai_predictions_status on ai_predictions(status);
 create index if not exists idx_ai_predictions_symbol on ai_predictions(symbol);
 create index if not exists idx_ai_predictions_is_control on ai_predictions(is_control);
 create index if not exists idx_ai_predictions_timestamp on ai_predictions(timestamp desc);
+create index if not exists idx_ai_predictions_ruleset on ai_predictions(ruleset_version);
 
 create table if not exists prediction_snapshots (
   prediction_id text primary key references ai_predictions(id) on delete cascade,
@@ -88,6 +92,8 @@ create table if not exists prediction_outcomes (
   tp3_hit_at timestamptz,
   sl_hit_at timestamptz,
   exit_price numeric,
+  exit_reason text,
+  exit_at timestamptz,
   breakeven_activated boolean default false,
   final_stop_price numeric,
   outcome text default 'PENDING',
@@ -95,3 +101,4 @@ create table if not exists prediction_outcomes (
 );
 
 create index if not exists idx_prediction_outcomes_status on prediction_outcomes(status);
+create index if not exists idx_prediction_outcomes_due on prediction_outcomes(status, next_check_at);

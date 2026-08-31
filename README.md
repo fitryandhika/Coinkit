@@ -236,3 +236,64 @@ npm run dev
 npm test
 npm run build
 ```
+
+---
+
+## 11. Perbaikan Integritas Evaluasi (migration 005)
+
+Sebelum perbaikan ini, laporan kalibrasi tidak bisa dipercaya. Bukan karena
+scoring-nya, tapi karena cara hasilnya diukur.
+
+### Apa yang rusak
+
+1. **Worker kelaparan.** Cron jalan 1x sehari dan hanya memproses 20 setup, dan
+   `listDuePredictions()` tidak punya `ORDER BY` maupun filter `next_check_at` —
+   jadi baris yang sama diambil berulang kali dan sebagian setup tidak pernah
+   dievaluasi. Karena dedup `autoRecord` memblokir symbol yang masih `PENDING`,
+   symbol itu ikut membeku dari pencatatan baru.
+2. **Jendela evaluasi tanpa batas atas.** Candle diambil dari waktu entry sampai
+   *sekarang*, bukan sampai horizon habis. Setup 24 jam yang baru tersentuh
+   worker di hari kelima dinilai atas rentang lima hari — MFE, MAE, dan sentuhan
+   SL semuanya membengkak.
+3. **Harga keluar untuk setup EXPIRED** diambil dari candle terakhir yang
+   kebetulan terambil (harga saat worker jalan), bukan close di akhir horizon.
+4. **Urutan SL vs TP salah.** Rantai `else if` bisa mencatat TP3_HIT untuk setup
+   yang sebenarnya sudah kena SL berjam-jam sebelumnya.
+5. **Stop loss tanpa batas bawah.** SL bebas menempel di pivot low terdekat
+   (kadang 0.2% dari entry), sehingga 1R lebih kecil daripada noise harga dan fee
+   round-trip memakan porsi besar dari risiko.
+6. **Laporan mencampur populasi.** Setup yang masih berjalan ikut menyumbang Win
+   Rate dan Total R; kartu Ringkasan mencampur angka dengan/tanpa control group.
+
+### Yang berubah
+
+- Cron jadi tiap jam, batch 120 setup, dengan batas waktu 45 detik per jalan.
+  Antrean diurutkan **paling telat dulu** (`listDueOutcomes`).
+- `fetchOutcomeCandles()` meminta jendela `startTime`–`endTime` yang tepat dan
+  memotong candle di akhir horizon. Kunci cache Bitget ikut memuat jendelanya.
+- Exit ditentukan **first touch**; kalau satu candle menyentuh SL dan TP
+  sekaligus, diasumsikan **SL duluan**.
+- Setiap setup selesai wajib punya `exit_price` + `exit_reason` (`STOP_LEVEL`,
+  `TRAILING_STOP`, `TP_LEVEL`, `HORIZON_CLOSE`, ...).
+- `resolveStopLoss()` punya jarak minimum: max(0.5%, 0.8xATR, fee/0.15).
+- Statistik hanya menghitung setup yang **sudah selesai**, dan `ruleset_version`
+  memisahkan data lama (v1) dari data baru (v2).
+
+### Cara memasang
+
+1. Jalankan `db/migration_005_evaluation_integrity.sql` di SQL Editor Supabase.
+2. Push kode, tunggu Vercel deploy.
+3. **Penting:** plan Hobby membatasi Vercel Cron ke 1x sehari. Daftarkan
+   scheduler eksternal (mis. cron-job.org) tiap 10–15 menit ke:
+   `https://<domain-anda>/api/worker/evaluate-predictions?secret=<WORKER_SECRET>`
+4. Buka halaman Kalibrasi Score. Defaultnya sekarang **Aturan Baru** — awalnya
+   kosong, dan itu memang benar. Data lama tetap bisa dilihat lewat tombol
+   "Data Lama", tapi jangan dipakai menilai score.
+
+### Kenapa data lama tidak diperbaiki saja
+
+Setup lama dievaluasi memakai rentang waktu yang salah, dan candle historis pada
+granularitas 15m tidak selalu masih tersedia untuk semua pasangan. Menghitung
+ulang sebagian saja justru menghasilkan campuran dua metode. Lebih jujur:
+tandai v1, mulai kumpulkan v2 dari nol. Dengan cron tiap 15 menit, 40 setup
+(ambang vonis) biasanya terkumpul dalam beberapa hari.

@@ -25,7 +25,19 @@ const OUTCOME_LABEL = {
   TP3_HIT: "TP3",
   EXPIRED: "Kadaluarsa",
   NOT_APPLICABLE: "Tidak Berlaku",
+  NO_DATA: "Data Candle Kosong",
   PENDING: "Berjalan",
+};
+
+/** Alasan keluar — supaya terlihat berapa banyak setup yang benar-benar kena
+ * level, dan berapa yang cuma habis waktu. */
+const EXIT_REASON_LABEL = {
+  STOP_LEVEL: "Kena Stop Loss",
+  TRAILING_STOP: "Kena Trailing Stop",
+  TP_LEVEL: "Kena Target",
+  HORIZON_CLOSE: "Habis Waktu (close)",
+  HORIZON_CLOSE_PARTIAL_DATA: "Habis Waktu (data bolong)",
+  NO_CANDLE_DATA: "Tanpa Data Candle",
 };
 
 const VERDICT_STYLE = {
@@ -63,6 +75,10 @@ function VerdictCard({ calibration }) {
           <strong>{calibration.sampleSize}</strong>
         </div>
       </div>
+      <p className="calib-card-sub" style={{ margin: 0 }}>
+        Korelasi memakai {calibration.sampleSizeEligible} setup lolos ambang + {calibration.controlIncluded} control
+        group. Control sengaja diikutkan: tanpa setup ber-score rendah, rentang score-nya terlalu sempit untuk diuji.
+      </p>
       {calibration.unresolved > 0 ? (
         <p className="calib-card-sub" style={{ margin: 0 }}>
           {calibration.unresolved} setup selesai tapi harga keluarnya tidak tercatat, jadi tidak ikut dihitung.
@@ -73,15 +89,22 @@ function VerdictCard({ calibration }) {
 }
 
 function SummaryCard({ overall, totals, fee }) {
+  // Semua angka di kartu ini berasal dari POPULASI YANG SAMA: setup lolos
+  // ambang (bukan control), sudah selesai, dan hasilnya terhitung. Versi lama
+  // mencampur tiga populasi berbeda dalam satu kartu — "Setup Tercatat" termasuk
+  // control, "Avg R" tidak, dan "Sampel Terhitung" ikut lagi.
   const tiles = [
-    ["Setup Tercatat", totals.recorded],
-    ["Selesai Dievaluasi", totals.completed],
+    ["Setup Tercatat", totals.eligibleRecorded],
+    ["Masih Berjalan", totals.stillRunning],
+    ["Selesai Dievaluasi", totals.eligibleCompleted],
+    ["Masuk Hitungan", totals.eligibleScored],
     ["Avg R (bersih fee)", fmt(overall.avgR, 2, "R"), rClass(overall.avgR)],
     ["Win Rate", fmt(overall.winRate, 1, "%")],
     ["Total R", fmt(overall.totalR, 2, "R"), rClass(overall.totalR)],
     ["Max Drawdown", fmt(overall.maxDrawdownR, 2, "R"), "c-red"],
     ["Kalah Beruntun", `${overall.longestLossStreak}x`],
     ["Control Group", totals.control],
+    ["Tanpa Harga Keluar", totals.unresolved],
     ["Avg MFE", fmt(overall.avgMfeR, 2, "R")],
     ["Avg MAE", fmt(overall.avgMaeR, 2, "R")],
   ];
@@ -90,7 +113,9 @@ function SummaryCard({ overall, totals, fee }) {
     <div className="panel-card">
       <p className="calib-card-title">Ringkasan</p>
       <p className="calib-card-sub">
-        Semua R sudah dikurangi fee taker Bitget (spot {fee.spot}%, futures {fee.futures}% per sisi).
+        Semua R sudah dikurangi fee taker Bitget (spot {fee.spot}%, futures {fee.futures}% per sisi). Angka di bawah
+        hanya menghitung setup lolos ambang yang SUDAH SELESAI — setup yang masih berjalan tidak ikut, supaya hasilnya
+        tidak berubah-ubah sendiri setiap worker jalan.
       </p>
       <div className="stat-tiles">
         {tiles.map(([label, value, cls]) => (
@@ -235,15 +260,19 @@ export default function ScreenerHistoryPage() {
   const [reportStatus, setReportStatus] = useState("loading");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
+  // Default: hanya data aturan baru. Setup lama (v1) dievaluasi dengan jendela
+  // waktu yang salah, jadi mencampurnya hanya akan mencemari korelasi.
+  const [ruleset, setRuleset] = useState("2");
 
   useEffect(() => {
-    fetch("/api/performance")
+    setReportStatus("loading");
+    fetch(`/api/performance?ruleset=${ruleset}`)
       .then((res) => res.json())
       .then((json) => {
         if (json.success) { setReport(json); setReportStatus("ok"); } else setReportStatus("error");
       })
       .catch(() => setReportStatus("error"));
-  }, []);
+  }, [ruleset]);
 
   /** Unduh lewat blob, bukan <a href> langsung, supaya error server terlihat
    * sebagai pesan — bukan file CSV berisi JSON error. */
@@ -273,6 +302,16 @@ export default function ScreenerHistoryPage() {
     <>
       <Topbar title="Kalibrasi Score" />
 
+      <div className="ruleset-toggle">
+        <button className={ruleset === "2" ? "active" : ""} onClick={() => setRuleset("2")}>Aturan Baru</button>
+        <button className={ruleset === "1" ? "active" : ""} onClick={() => setRuleset("1")}>Data Lama</button>
+        <button className={ruleset === "all" ? "active" : ""} onClick={() => setRuleset("all")}>Gabungan</button>
+      </div>
+      <p className="calib-card-sub" style={{ margin: "0 0 12px" }}>
+        Setup sebelum perbaikan evaluasi (Data Lama) dinilai memakai rentang waktu yang melewati horizon, jadi MFE, MAE,
+        dan hasilnya membengkak. Pakai Aturan Baru untuk menilai apakah score benar-benar bekerja.
+      </p>
+
       {reportStatus === "loading" ? <p className="detail-sub">Menghitung kalibrasi...</p> : null}
       {reportStatus === "error" ? <p className="error-banner">Gagal memuat laporan kalibrasi.</p> : null}
 
@@ -286,6 +325,8 @@ export default function ScreenerHistoryPage() {
           <BreakdownCard title="Per Arah" firstHeader="Arah" data={report.breakdowns.byDirection} />
           <BreakdownCard title="Per Timeframe" firstHeader="TF" data={report.breakdowns.byTimeframe} />
           <BreakdownCard title="Per Jenis Hasil" firstHeader="Hasil" data={report.breakdowns.byOutcome} labelMap={OUTCOME_LABEL} />
+          <BreakdownCard title="Per Alasan Keluar" firstHeader="Alasan" data={report.breakdowns.byExitReason} labelMap={EXIT_REASON_LABEL} />
+          <BreakdownCard title="Per Versi Aturan" firstHeader="Versi" data={report.breakdowns.byRulesetVersion} />
         </>
       ) : null}
 
