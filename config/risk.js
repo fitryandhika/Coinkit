@@ -39,4 +39,4 @@ export const RISK_CONFIG = {
   // Fee taker Bitget per sisi x 2. Harus sama dengan lib/performance/config.js,
   // supaya level yang dibuat dan hasil yang dihitung memakai asumsi yang sama.
   FEE_ROUNDTRIP_PCT: { spot: 0.2, futures: 0.12 },
-};
+}; 
