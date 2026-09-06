@@ -147,4 +147,4 @@ test("filter universe melaporkan apa yang dibuang, bukan membuang diam-diam", ()
   const { kept, excludedByClass } = filterUniverseByAssetClass(items, { allowTokenized: false });
   assert.equal(kept.length, 2);
   assert.deepEqual(excludedByClass, { tokenized_equity: 1, commodity: 1 });
-});
+}); 
