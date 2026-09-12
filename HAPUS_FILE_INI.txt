@@ -1,142 +1,94 @@
 =====================================================================
-UPDATE: Pencatatan Terjadwal — memperbaiki riwayat yang mentok 6 Sep
+UPDATE: Symbol yang ditolak Bitget tidak lagi menyumbat antrean
 =====================================================================
 
 TIDAK ADA file yang dihapus.
-TIDAK ADA migrasi database baru. Skema Anda sudah benar apa adanya.
+TIDAK ADA migrasi database. Skema Anda sudah lengkap.
 
 ---------------------------------------------------------------------
 CARA PASANG (Termux)
 ---------------------------------------------------------------------
 
     cd ~/work/cryptoai
-    unzip -o ~/storage/downloads/Coinkit-pencatatan-terjadwal.zip
-    npm test          # harus 108 pass, 0 fail
+    unzip -o ~/storage/downloads/Coinkit-antrean-tahan-error.zip
+    npm test          # harus 112 pass, 0 fail
     git add -A
-    git commit -m "pencatatan setup terjadwal + dedup tidak lagi membeku"
+    git commit -m "antrean evaluasi tahan symbol yang ditolak Bitget"
     git push
 
----------------------------------------------------------------------
-LANGKAH WAJIB SETELAH DEPLOY — kalau dilewat, data tetap berhenti
----------------------------------------------------------------------
-
-1. Di cron-job.org, BUAT JOB BARU (ini perekamnya, belum pernah ada):
-
-       URL      https://coinkitai.vercel.app/api/worker/record-setups?secret=WORKER_SECRET
-       Interval setiap 15 menit
-       Method   GET
-
-2. PERIKSA job lama Anda yang memanggil evaluate-predictions.
-   Buka riwayat eksekusinya. Kalau ada deretan "Failed" atau statusnya
-   sudah dinonaktifkan otomatis, hidupkan lagi. Itu kemungkinan besar
-   penyebab antrean menumpuk sejak 6 September.
-
-3. Buka halaman Kalibrasi. Kartu paling atas sekarang bernama
-   "Status Pengumpul Data". Dua angka pertama harus hijau dalam 15 menit.
-   Kalau merah, mesinnya masih mati — dan sekarang Anda bisa melihatnya.
-
-4. (Opsional) Kalau ingin cron bawaan Vercel ikut jalan sebagai cadangan,
-   tambahkan Environment Variable CRON_SECRET di Vercel. Tanpa itu, cron
-   harian Vercel selalu ditolak 401 — selama ini diam-diam tidak berguna.
-
----------------------------------------------------------------------
-CARA MENGUJI SEKARANG JUGA (tanpa menunggu 15 menit)
----------------------------------------------------------------------
-
-Buka di browser HP:
-
-    https://coinkitai.vercel.app/api/worker/record-setups?secret=WORKER_SECRET
-
-Anda akan melihat JSON seperti:
-
-    "totalRecorded": 71, "totalErrors": 0,
-    "runs": [{ "mode":"futures", "recorded":38, "skipped":82,
-               "skipReasons": { "BELOW_THRESHOLD":49, "NEUTRAL_DIRECTION":33 } }]
-
-Kalau totalErrors > 0, isi "errors" akan menyebutkan pesan aslinya dari
-Supabase. Kirimkan ke saya kalau muncul.
+Tidak ada langkah tambahan setelah deploy. Cron yang sudah Anda daftarkan
+tetap dipakai apa adanya.
 
 =====================================================================
 ISI UPDATE
 =====================================================================
 
-MASALAH 1: PENCATATAN MENUMPANG PADA HALAMAN
-  autoRecordIfEligible hanya terpanggil saat /api/screener diminta, yaitu
-  saat Anda membuka Dashboard/Screener/Opportunities. Aplikasi tidak dibuka
-  = tidak ada data. Itu penyebab berhenti total sejak 6 September, dan juga
-  hari-hari bolong 27 & 29 Agu, 2 & 4 Sep.
+MASALAH 1: SATU SYMBOL RUSAK = PAJAK PERMANEN
+  Di fetchOutcomeCandles(), permintaan candle CADANGAN tidak dibungkus
+  try/catch. Symbol yang dijawab Bitget dengan HTTP 400 (mis. 4USDT)
+  melempar error sampai ke worker. Barisnya tidak tersentuh sama sekali —
+  termasuk next_check_at yang tetap bernilai lama.
 
-  Efek yang lebih halus dan lebih berbahaya untuk kalibrasi: sampel jadi
-  condong ke jam-jam Anda online. Score diuji hanya pada sebagian kondisi
-  pasar, lalu kesimpulannya dipakai untuk semua jam.
+  Karena antrean diurutkan "paling telat dulu", baris itu selamanya berada
+  di kepala antrean dan memakan slot di SETIAP panggilan worker. Sekarang
+  baru 2 baris; jumlahnya hanya bisa bertambah seiring Bitget mendelisting
+  pasangan.
 
-  PERBAIKAN: endpoint baru app/api/worker/record-setups yang punya jadwal
-  sendiri. runScreener sekarang punya parameter `record` yang default FALSE,
-  jadi membuka halaman tidak lagi menulis apa pun ke database.
+  PERBAIKAN: permintaan cadangan dibungkus. Kalau horizon sudah lewat dan
+  candle tetap kosong, setup ditutup sebagai NO_DATA dengan exit_reason
+  FETCH_REJECTED — dibedakan dari NO_CANDLE_DATA, supaya "ditolak Bitget"
+  bisa dipisahkan dari "memang tidak ada candle" saat menganalisa ulang.
 
-MASALAH 2: WORKER MATI MEMBEKUKAN SEMUA SYMBOL
-  Dedup lama memblokir pencatatan selama masih ada prediction PENDING —
-  tanpa melihat apakah horizonnya sudah habis. Begitu evaluator berhenti,
-  tidak ada yang jadi COMPLETED, jadi tidak ada setup baru boleh masuk.
-  Satu kegagalan berubah jadi kemacetan permanen.
+  Diuji end-to-end: setup 4USDT yang selalu dijawab 400 sekarang selesai
+  sebagai COMPLETED / NO_DATA / FETCH_REJECTED, dan next_check_at jadi null
+  sehingga keluar dari antrean. Sebelumnya: error, baris tidak berubah.
 
-  PERBAIKAN: PENDING yang horizonnya sudah lewat (+15 menit) tidak lagi
-  dianggap aktif. Setup lamanya tetap ada dan tetap akan dievaluasi; dia
-  cuma tidak menyandera symbol-nya lagi.
+MASALAH 2: ERROR TAK TERDUGA JUGA MENETAP DI KEPALA ANTREAN
+  Bukan cuma masalah fetch. Error APA PUN saat evaluasi membuat barisnya
+  tidak dijadwalkan ulang, jadi pola macet yang sama bisa terulang lewat
+  jalur lain.
 
-  Diuji: dengan 150 PENDING berumur 5 hari di database, kode lama mencatat
-  0 setup baru. Kode baru mencatat 62.
+  PERBAIKAN: worker sekarang memundurkan next_check_at 30 menit untuk baris
+  yang gagal (ERROR_BACKOFF_MS). Barisnya tetap akan dicoba lagi, tapi tidak
+  menyandera slot di setiap panggilan.
 
-MASALAH 3: SEMUA KEGAGALAN DITELAN
-  autoRecord.js punya `catch {}` kosong, dan screener.js memanggilnya dengan
-  `.catch(() => {})`. Kolom hilang, kredensial salah, koneksi putus — semua
-  menghasilkan gejala yang sama persis: riwayat berhenti, tanpa pesan.
+MASALAH 3: DEADLINE PEREKAM MASIH 45 DETIK
+  Worker evaluasi sudah diturunkan ke 25 detik agar selesai sebelum
+  cron-job.org memutus koneksi (~30 detik), tapi /api/worker/record-setups
+  punya konstanta sendiri yang masih 45 detik. Selama Bitget cepat tidak
+  terasa; saat lambat, job ditandai gagal dan bisa dinonaktifkan otomatis —
+  persis pola kegagalan yang baru kita perbaiki.
 
-  PERBAIKAN: setiap pencatatan mengembalikan status (RECORDED / SKIPPED /
-  DUPLICATE / ERROR) beserta alasannya, dan endpoint perekam menampilkan
-  ringkasannya. Pencatatan juga DITUNGGU, bukan fire-and-forget — Vercel
-  boleh membekukan proses begitu response terkirim.
+  PERBAIKAN: keduanya kini memakai OUTCOME_CONFIG.WORKER_DEADLINE_MS (25
+  detik). Ada test yang menjaga angka ini tetap di bawah 30 detik.
 
-MASALAH 4: MATINYA TIDAK TERLIHAT
-  Halaman Kalibrasi kosong terlihat sama persis antara "score belum terbukti"
-  dan "tidak ada data masuk lima hari". Dua kondisi itu butuh tindakan yang
-  sangat berbeda.
-
-  PERBAIKAN: kartu "Status Pengumpul Data" di paling atas halaman Kalibrasi,
-  memakai endpoint baru /api/worker/status. Merah kalau lewat 2 jam.
-
-MASALAH 5: WORKER EVALUASI KEHABISAN WAKTU
-  Deadline 45 detik melebihi batas tunggu cron-job.org (sekitar 30 detik).
-  Job ditandai gagal, dan setelah beberapa kali gagal bisa dinonaktifkan
-  otomatis. Deadline diturunkan ke 25 detik — sisa antrean dikerjakan di
-  panggilan berikutnya, jadi tidak ada data yang hilang.
+PERUBAHAN TEKNIS KECIL
+  lib/bitget/{client,spot,futures}.js: import relatif diberi akhiran .js.
+  Next.js tidak terpengaruh, tapi tanpa ini modul-modul itu tidak bisa
+  diuji langsung oleh `node --test` — dan test regresi di atas butuh
+  memanggil jalur fetch yang sebenarnya, bukan tiruan.
 
 ---------------------------------------------------------------------
 FILE YANG BERUBAH
 ---------------------------------------------------------------------
 
 BARU:
-  lib/screener/recordPolicy.js          aturan murni: dicatat atau tidak
-  app/api/worker/record-setups/route.js perekam terjadwal
-  app/api/worker/status/route.js        status mesin pengumpul data
-  test/recordPolicy.test.js             12 test baru
+  test/fetchResilience.test.js              4 test regresi
 
 DIUBAH:
-  lib/screener/autoRecord.js     melaporkan status, tidak menelan error
-  lib/screener/screener.js       parameter `record` (default false) + ringkasan
-  lib/db/predictions.js          dedup sadar horizon + getRecordingHealth
-  lib/db/outcomes.js             getLastEvaluationEndedAt
-  lib/outcome/config.js          deadline 25s + STALE_PENDING_GRACE_MS
-  app/screener-history/page.js   kartu Status Pengumpul Data
-  README.md                      bagian 12
+  lib/outcome/monitor.js                    permintaan cadangan dibungkus
+  lib/outcome/config.js                     ERROR_BACKOFF_MS
+  app/api/worker/evaluate-predictions/route.js  FETCH_REJECTED + backoff
+  app/api/worker/record-setups/route.js     deadline ikut 25 detik
+  lib/bitget/client.js                      akhiran .js
+  lib/bitget/spot.js                        akhiran .js
+  lib/bitget/futures.js                     akhiran .js
+  README.md                                 bagian 11b
 
 ---------------------------------------------------------------------
-CATATAN SOAL DATA YANG HILANG 6-11 SEPTEMBER
+SETELAH DEPLOY
 ---------------------------------------------------------------------
 
-Jangan di-backfill. Memutar ulang candle historis lalu memasukkannya ke
-tabel yang sama menghasilkan backtest, bukan catatan live — dan begitu
-tercampur, tidak ada lagi cara memisahkannya saat menilai score.
-
-Lubang itu biarkan sebagai lubang. Yang penting mulai sekarang datanya
-masuk merata 24 jam, bukan hanya saat Anda membuka aplikasi.
+Panggil evaluator sekali manual. Dua baris 4USDT akan langsung tertutup
+sebagai FETCH_REJECTED, dan stalePendingCount di /api/worker/status ikut
+turun. Setelah itu biarkan cron yang bekerja.

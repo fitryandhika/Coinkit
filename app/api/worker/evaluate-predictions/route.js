@@ -82,7 +82,7 @@ async function evaluateOne(prediction, existingOutcome, nowMs) {
   }
 
   const entryTimestamp = new Date(prediction.timestamp).getTime();
-  const { candles, complete } = await fetchOutcomeCandles({
+  const { candles, complete, fetchError } = await fetchOutcomeCandles({
     market: prediction.market,
     symbol: prediction.symbol,
     entryTimestamp,
@@ -119,7 +119,9 @@ async function evaluateOne(prediction, existingOutcome, nowMs) {
     }
     await updateOutcome(prediction.id, {
       outcome: "NO_DATA",
-      exit_reason: "NO_CANDLE_DATA",
+      // Dibedakan supaya symbol yang DITOLAK Bitget (400/404, pasangan sudah
+      // delisting) bisa dipisahkan dari yang sekadar tidak punya candle.
+      exit_reason: fetchError ? "FETCH_REJECTED" : "NO_CANDLE_DATA",
       status: "COMPLETED",
       evaluation_ended_at: new Date(nowMs).toISOString(),
       next_check_at: null,
@@ -231,6 +233,14 @@ async function runWorker(request) {
       const outcome = await evaluateOne(item.prediction, item.outcome, Date.now());
       results.push({ id: item.prediction.id, outcome });
     } catch (err) {
+      // Jadwalkan ulang, jangan biarkan barisnya diam di kepala antrean.
+      try {
+        await updateOutcome(item.prediction.id, {
+          next_check_at: new Date(Date.now() + OUTCOME_CONFIG.ERROR_BACKOFF_MS).toISOString(),
+        });
+      } catch (bumpErr) {
+        // kalau update jadwal pun gagal, biarkan — jangan menggagalkan sisa antrean
+      }
       results.push({ id: item.prediction.id, error: err.message });
     }
   }

@@ -309,6 +309,31 @@ tandai v1, mulai kumpulkan v2 dari nol. Dengan cron tiap 15 menit, 40 setup
 
 ---
 
+## 11b. Ketahanan Antrean Evaluasi
+
+Antrean worker diurutkan **paling telat dulu** (`next_check_at` menaik). Urutan
+itu benar, tapi punya satu sisi tajam: baris yang gagal dievaluasi tanpa pernah
+dijadwalkan ulang akan menetap di kepala antrean selamanya, memakan slot di
+setiap panggilan worker.
+
+Dua sumbernya sudah ditutup:
+
+1. **Symbol yang ditolak Bitget.** `fetchOutcomeCandles()` dulu punya permintaan
+   cadangan yang tidak dibungkus `try/catch`, jadi HTTP 400 (pasangan delisting,
+   symbol tidak valid) melempar sampai ke worker. Sekarang dibungkus, dan setup
+   yang horizonnya sudah lewat ditutup sebagai `NO_DATA` dengan `exit_reason`
+   **`FETCH_REJECTED`** — dibedakan dari `NO_CANDLE_DATA` supaya "ditolak API"
+   bisa dipisahkan dari "memang tidak ada candle".
+2. **Error tak terduga lainnya.** Worker memundurkan `next_check_at` sebesar
+   `ERROR_BACKOFF_MS` (30 menit) untuk baris yang gagal. Tetap dicoba lagi, tapi
+   tidak menyandera antrean.
+
+Kedua worker juga memakai deadline yang sama (`WORKER_DEADLINE_MS`, 25 detik),
+di bawah batas tunggu scheduler gratis (~30 detik). Ada unit test yang menjaga
+angka itu tidak naik melewati batas tersebut.
+
+---
+
 ## 12. Pencatatan Terjadwal (kenapa riwayat pernah berhenti)
 
 Sampai versi sebelumnya, satu-satunya yang mencatat setup adalah

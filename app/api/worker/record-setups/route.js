@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { runScreener } from "@/lib/screener/screener";
 import { SCREENER_CONFIG } from "@/lib/screener/config";
 import { TIMEFRAMES } from "@/lib/bitget/constants";
+import { OUTCOME_CONFIG } from "@/lib/outcome/config";
 
 /**
  * PEREKAM SETUP TERJADWAL.
@@ -23,10 +24,13 @@ import { TIMEFRAMES } from "@/lib/bitget/constants";
 
 export const maxDuration = 60;
 
-// Berhenti sendiri sebelum Vercel memutus request. Kombinasi yang belum
-// sempat dijalankan akan kebagian di panggilan berikutnya karena urutannya
-// digeser berdasarkan menit berjalan (lihat rotate()).
-const DEADLINE_MS = 45000;
+// Berhenti sendiri sebelum SCHEDULER memutus koneksi — bukan sebelum Vercel.
+// Batas tunggu cron-job.org sekitar 30 detik, jadi angka inilah yang mengikat,
+// bukan maxDuration 60. Disamakan dengan worker evaluasi (25 detik) supaya
+// tidak ada satu pun job yang ditandai gagal lalu dinonaktifkan otomatis.
+// Kombinasi yang belum sempat dijalankan kebagian di panggilan berikutnya
+// karena urutannya digeser tiap 15 menit (lihat rotate()).
+const DEADLINE_MS = OUTCOME_CONFIG.WORKER_DEADLINE_MS;
 
 /** Kombinasi yang dipantau. Sengaja pendek: setiap kombinasi memindai 120 coin,
  * dan sampel yang rapat pada satu timeframe lebih berguna untuk kalibrasi
