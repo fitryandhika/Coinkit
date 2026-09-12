@@ -1,135 +1,142 @@
 =====================================================================
-UPDATE: Entry Quality — saring coin yang harganya sudah kemahalan
+UPDATE: Pencatatan Terjadwal — memperbaiki riwayat yang mentok 6 Sep
 =====================================================================
 
-Update ini TIDAK menghapus file apa pun.
-TAPI ada SATU migrasi database baru yang harus dijalankan.
+TIDAK ADA file yang dihapus.
+TIDAK ADA migrasi database baru. Skema Anda sudah benar apa adanya.
 
 ---------------------------------------------------------------------
 CARA PASANG (Termux)
 ---------------------------------------------------------------------
 
     cd ~/work/cryptoai
-    unzip -o ~/storage/downloads/Coinkit-entry-quality.zip
-    npm test          # harus 66 pass, 0 fail
+    unzip -o ~/storage/downloads/Coinkit-pencatatan-terjadwal.zip
+    npm test          # harus 108 pass, 0 fail
     git add -A
-    git commit -m "entry quality: saring & urutkan setup yang harganya masih layak"
+    git commit -m "pencatatan setup terjadwal + dedup tidak lagi membeku"
     git push
 
-Kalau nama folder kerja Anda bukan ~/work/cryptoai, sesuaikan.
-Pastikan Anda berada DI DALAM folder project sebelum unzip -o,
-karena isi zip langsung berupa app/, lib/, components/, db/.
-
 ---------------------------------------------------------------------
-LANGKAH WAJIB: MIGRASI DATABASE
+LANGKAH WAJIB SETELAH DEPLOY — kalau dilewat, data tetap berhenti
 ---------------------------------------------------------------------
 
-Buka Supabase -> SQL Editor -> tempel isi file:
+1. Di cron-job.org, BUAT JOB BARU (ini perekamnya, belum pernah ada):
 
-    db/migration_004_entry_quality.sql
+       URL      https://coinkitai.vercel.app/api/worker/record-setups?secret=WORKER_SECRET
+       Interval setiap 15 menit
+       Method   GET
 
-Migrasi ini HANYA MENAMBAH kolom (entry_score, entry_label, risk_reward,
-chase_gap_pct, extension_atr). Tidak ada tabel/kolom yang dihapus.
-Aman dijalankan berkali-kali.
+2. PERIKSA job lama Anda yang memanggil evaluate-predictions.
+   Buka riwayat eksekusinya. Kalau ada deretan "Failed" atau statusnya
+   sudah dinonaktifkan otomatis, hidupkan lagi. Itu kemungkinan besar
+   penyebab antrean menumpuk sejak 6 September.
 
-Kalau migrasi ini belum dijalankan, aplikasi tetap berjalan normal,
-tapi pencatatan setup baru akan GAGAL menyimpan snapshot karena
-kolomnya belum ada. Jadi jalankan sebelum dipakai serius.
+3. Buka halaman Kalibrasi. Kartu paling atas sekarang bernama
+   "Status Pengumpul Data". Dua angka pertama harus hijau dalam 15 menit.
+   Kalau merah, mesinnya masih mati — dan sekarang Anda bisa melihatnya.
+
+4. (Opsional) Kalau ingin cron bawaan Vercel ikut jalan sebagai cadangan,
+   tambahkan Environment Variable CRON_SECRET di Vercel. Tanpa itu, cron
+   harian Vercel selalu ditolak 401 — selama ini diam-diam tidak berguna.
+
+---------------------------------------------------------------------
+CARA MENGUJI SEKARANG JUGA (tanpa menunggu 15 menit)
+---------------------------------------------------------------------
+
+Buka di browser HP:
+
+    https://coinkitai.vercel.app/api/worker/record-setups?secret=WORKER_SECRET
+
+Anda akan melihat JSON seperti:
+
+    "totalRecorded": 71, "totalErrors": 0,
+    "runs": [{ "mode":"futures", "recorded":38, "skipped":82,
+               "skipReasons": { "BELOW_THRESHOLD":49, "NEUTRAL_DIRECTION":33 } }]
+
+Kalau totalErrors > 0, isi "errors" akan menyebutkan pesan aslinya dari
+Supabase. Kirimkan ke saya kalau muncul.
 
 =====================================================================
 ISI UPDATE
 =====================================================================
 
-MASALAH YANG DIPERBAIKI
-Skor screener lama menilai SEBERAPA KUAT sebuah gerakan. Itu bukan hal
-yang sama dengan SEBERAPA LAYAK harganya dimasuki sekarang. Akibatnya
-coin yang sudah lari 40% justru mendapat momentum score paling tinggi,
-padahal itu justru entry paling berisiko.
+MASALAH 1: PENCATATAN MENUMPANG PADA HALAMAN
+  autoRecordIfEligible hanya terpanggil saat /api/screener diminta, yaitu
+  saat Anda membuka Dashboard/Screener/Opportunities. Aplikasi tidak dibuka
+  = tidak ada data. Itu penyebab berhenti total sejak 6 September, dan juga
+  hari-hari bolong 27 & 29 Agu, 2 & 4 Sep.
 
-1. MODUL BARU: lib/screener/entryQuality.js
-   Mengukur POSISI harga, bukan kekuatannya. Semua jarak dalam satuan
-   ATR (bukan persen mentah), supaya adil antara BTC dan altcoin receh.
+  Efek yang lebih halus dan lebih berbahaya untuk kalibrasi: sampel jadi
+  condong ke jam-jam Anda online. Score diuji hanya pada sebagian kondisi
+  pasar, lalu kesimpulannya dipakai untuk semua jam.
 
-     - Extension   30%  jarak harga ke EMA20 (deteksi lilin parabolik)
-     - Chase       25%  jarak harga MELEWATI level pemicu
-                        (ini yang menangkap "telat masuk setelah breakout")
-     - Leg         20%  panjang kaki gerakan dari swing terakhir
-     - Risk:Reward 25%  (TP1 - harga sekarang) / (harga sekarang - SL)
+  PERBAIKAN: endpoint baru app/api/worker/record-setups yang punya jadwal
+  sendiri. runScreener sekarang punya parameter `record` yang default FALSE,
+  jadi membuka halaman tidak lagi menulis apa pun ke database.
 
-   Hasil: entryScore 0-100 + label
-     GOOD >= 70 | FAIR >= 52 | EXTENDED >= 32 | OVEREXTENDED < 32
+MASALAH 2: WORKER MATI MEMBEKUKAN SEMUA SYMBOL
+  Dedup lama memblokir pencatatan selama masih ada prediction PENDING —
+  tanpa melihat apakah horizonnya sudah habis. Begitu evaluator berhenti,
+  tidak ada yang jadi COMPLETED, jadi tidak ada setup baru boleh masuk.
+  Satu kegagalan berubah jadi kemacetan permanen.
 
-   Hasil uji pada tiga skenario sintetis:
-     baru tembus level (+1.5%)        -> GOOD          skor 86
-     naik 45% dalam 6 candle          -> OVEREXTENDED  skor 19
-     naik 45% pelan dalam 30 candle   -> EXTENDED      skor 39
+  PERBAIKAN: PENDING yang horizonnya sudah lewat (+15 menit) tidak lagi
+  dianggap aktif. Setup lamanya tetap ada dan tetap akan dievaluasi; dia
+  cuma tidak menyandera symbol-nya lagi.
 
-2. PENALTI MASUK KE SKOR SCREENER
-   OVEREXTENDED -20 poin, EXTENDED -8 poin. Jadi coin kemahalan turun
-   peringkat dengan sendirinya, bukan sekadar disembunyikan.
+  Diuji: dengan 150 PENDING berumur 5 hari di database, kode lama mencatat
+  0 setup baru. Kode baru mencatat 62.
 
-3. URUTAN DEFAULT "ENTRY TERBAIK"
-   60% skor setup + 40% kelayakan harga. Ada dropdown Urutkan untuk
-   kembali ke "Skor setup" atau "Harga termurah".
+MASALAH 3: SEMUA KEGAGALAN DITELAN
+  autoRecord.js punya `catch {}` kosong, dan screener.js memanggilnya dengan
+  `.catch(() => {})`. Kolom hilang, kredensial salah, koneksi putus — semua
+  menghasilkan gejala yang sama persis: riwayat berhenti, tanpa pesan.
 
-4. FILTER BARU
-   "Kualitas Entry" (default: Sembunyikan yang kemahalan) dan "Min. R:R".
-   Di bawah filter muncul catatan "N coin disembunyikan..." supaya Anda
-   tahu ada yang tersaring, bukan hilang diam-diam.
+  PERBAIKAN: setiap pencatatan mengembalikan status (RECORDED / SKIPPED /
+  DUPLICATE / ERROR) beserta alasannya, dan endpoint perekam menampilkan
+  ringkasannya. Pencatatan juga DITUNGGU, bukan fire-and-forget — Vercel
+  boleh membekukan proses begitu response terkirim.
 
-5. KARTU SCREENER
-   Badge KEMAHALAN / AGAK JAUH / ENTRY WAJAR / ENTRY IDEAL, nilai R:R,
-   dan SARAN HARGA RETEST untuk setup yang sudah terlanjur jauh:
-   "Entry lebih sehat kalau menunggu retest di sekitar X (4.3% dari
-   harga sekarang)".
+MASALAH 4: MATINYA TIDAK TERLIHAT
+  Halaman Kalibrasi kosong terlihat sama persis antara "score belum terbukti"
+  dan "tidak ada data masuk lima hari". Dua kondisi itu butuh tindakan yang
+  sangat berbeda.
 
-6. AUTO-RECORD
-   Setup OVEREXTENDED tidak lagi dicatat sebagai rekomendasi, tapi TETAP
-   boleh masuk control group. Ini disengaja: mesin kalibrasi jadi bisa
-   MEMBUKTIKAN apakah menyaringnya memang menaikkan win rate, bukan
-   sekadar asumsi.
+  PERBAIKAN: kartu "Status Pengumpul Data" di paling atas halaman Kalibrasi,
+  memakai endpoint baru /api/worker/status. Merah kalau lewat 2 jam.
 
-7. BUG LAMA DIPERBAIKI: lib/db/snapshots.js
-   autoRecord mengirim `volume` dan `volumeRatio` sebagai angka datar,
-   tapi snapshots.js membacanya sebagai objek (snapshot.volume?.volumeRatio).
-   Akibatnya kolom volume dan volume_ratio SELALU tersimpan null selama
-   ini. Sudah diperbaiki, dan ini memengaruhi kualitas data kalibrasi
-   Anda ke depan.
+MASALAH 5: WORKER EVALUASI KEHABISAN WAKTU
+  Deadline 45 detik melebihi batas tunggu cron-job.org (sekitar 30 detik).
+  Job ditandai gagal, dan setelah beberapa kali gagal bisa dinonaktifkan
+  otomatis. Deadline diturunkan ke 25 detik — sisa antrean dikerjakan di
+  panggilan berikutnya, jadi tidak ada data yang hilang.
 
 ---------------------------------------------------------------------
 FILE YANG BERUBAH
 ---------------------------------------------------------------------
 
 BARU:
-  lib/screener/entryQuality.js        mesin penilaian kelayakan harga
-  lib/screener/clientFilters.js       filter & urutan bersama 2 halaman
-  db/migration_004_entry_quality.sql  migrasi database
-  test/entryQuality.test.js           13 test baru
+  lib/screener/recordPolicy.js          aturan murni: dicatat atau tidak
+  app/api/worker/record-setups/route.js perekam terjadwal
+  app/api/worker/status/route.js        status mesin pengumpul data
+  test/recordPolicy.test.js             12 test baru
 
 DIUBAH:
-  lib/screener/config.js              ambang & bobot entry quality
-  lib/screener/ranking.js             penalti entry kemahalan
-  lib/screener/reasons.js             kalimat alasan soal harga
-  lib/screener/screener.js            urutan hitung: tradeIdea -> entry -> skor
-  lib/screener/autoRecord.js          jangan catat setup kemahalan
-  lib/db/snapshots.js                 kolom baru + perbaikan bug volume
-  components/screener/ScreenerCard.js     badge, R:R, saran retest
-  components/screener/ScreenerFilters.js  filter Kualitas Entry & Min. R:R
-  components/screener/OpportunityTable.js kolom Entry & R:R
-  app/scanner/page.js                 dropdown urutan + catatan tersaring
-  app/opportunities/page.js           pakai filter bersama
-  app/globals.css                     gaya kotak kelayakan harga
-  README.md                           bagian 7b: Kelayakan Harga Entry
+  lib/screener/autoRecord.js     melaporkan status, tidak menelan error
+  lib/screener/screener.js       parameter `record` (default false) + ringkasan
+  lib/db/predictions.js          dedup sadar horizon + getRecordingHealth
+  lib/db/outcomes.js             getLastEvaluationEndedAt
+  lib/outcome/config.js          deadline 25s + STALE_PENDING_GRACE_MS
+  app/screener-history/page.js   kartu Status Pengumpul Data
+  README.md                      bagian 12
 
 ---------------------------------------------------------------------
-CATATAN
+CATATAN SOAL DATA YANG HILANG 6-11 SEPTEMBER
 ---------------------------------------------------------------------
 
-Setup yang dicatat SEBELUM migrasi 004 akan punya kolom entry_score
-kosong. Itu normal, bukan bug. Perbandingan "entry murah vs kemahalan"
-di halaman kalibrasi baru bisa dinilai setelah terkumpul cukup setup
-BARU dari kedua kelompok.
+Jangan di-backfill. Memutar ulang candle historis lalu memasukkannya ke
+tabel yang sama menghasilkan backtest, bukan catatan live — dan begitu
+tercampur, tidak ada lagi cara memisahkannya saat menilai score.
 
-Angka ambang (0.8 / 3.5 ATR untuk extension, dst) ada di
-lib/screener/config.js bagian "Entry Quality" kalau nanti mau
-dikencangkan atau dilonggarkan setelah melihat hasil nyata.
+Lubang itu biarkan sebagai lubang. Yang penting mulai sekarang datanya
+masuk merata 24 jam, bukan hanya saat Anda membuka aplikasi.

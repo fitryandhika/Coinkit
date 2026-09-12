@@ -59,6 +59,66 @@ function Table({ headers, children }) {
   );
 }
 
+/** Kartu status mesin pengumpul data.
+ *
+ * Diletakkan PALING ATAS dengan sengaja. Kalau perekam atau evaluator mati,
+ * setiap angka kalibrasi di bawahnya jadi tidak berarti — dan sampai sekarang
+ * tidak ada satu pun tanda di layar yang membedakan "data belum cukup" dari
+ * "tidak ada data masuk sejak lima hari lalu". */
+function DataHealthCard({ status }) {
+  if (!status) return null;
+
+  const fmtAge = (hours) => {
+    if (hours === null || hours === undefined) return "belum pernah";
+    if (hours < 1) return `${Math.round(hours * 60)} menit lalu`;
+    if (hours < 48) return `${hours.toFixed(1)} jam lalu`;
+    return `${Math.floor(hours / 24)} hari lalu`;
+  };
+
+  const bad = "#ea3943";
+  const good = "#16c784";
+  const broken = !status.recordingHealthy || !status.evaluationHealthy;
+
+  return (
+    <div className="panel-card verdict-card" style={{ borderLeftColor: broken ? bad : good }}>
+      <p className="calib-card-title">Status Pengumpul Data</p>
+      <div className="stat-tiles">
+        <div className="stat-tile">
+          <span>Setup Terakhir Dicatat</span>
+          <strong style={{ color: status.recordingHealthy ? good : bad }}>{fmtAge(status.recordingAgeHours)}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Evaluasi Terakhir Selesai</span>
+          <strong style={{ color: status.evaluationHealthy ? good : bad }}>{fmtAge(status.evaluationAgeHours)}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Masih Berjalan</span>
+          <strong>{status.pendingCount ?? "—"}</strong>
+        </div>
+        <div className="stat-tile">
+          <span>Lewat Horizon</span>
+          <strong style={{ color: status.stalePendingCount > 0 ? bad : undefined }}>
+            {status.stalePendingCount ?? "—"}
+          </strong>
+        </div>
+      </div>
+      {broken ? (
+        <p className="calib-card-sub" style={{ margin: 0 }}>
+          Ada yang berhenti berjalan. Selama ini berlangsung, angka kalibrasi di bawah menilai data yang tidak
+          bertambah — cek scheduler di cron-job.org untuk <code>/api/worker/record-setups</code> dan{" "}
+          <code>/api/worker/evaluate-predictions</code>.
+        </p>
+      ) : null}
+      {status.stalePendingCount > 0 ? (
+        <p className="calib-card-sub" style={{ margin: 0 }}>
+          {status.stalePendingCount} setup sudah lewat horizon tapi belum selesai dievaluasi. Antrean evaluasi
+          menumpuk; setup ini tidak lagi memblokir pencatatan baru, tapi hasilnya juga belum masuk hitungan.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function VerdictCard({ calibration }) {
   const style = VERDICT_STYLE[calibration.verdict.level] || VERDICT_STYLE.INSUFFICIENT;
   return (
@@ -263,6 +323,14 @@ export default function ScreenerHistoryPage() {
   // Default: hanya data aturan baru. Setup lama (v1) dievaluasi dengan jendela
   // waktu yang salah, jadi mencampurnya hanya akan mencemari korelasi.
   const [ruleset, setRuleset] = useState("2");
+  const [health, setHealth] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/worker/status")
+      .then((res) => res.json())
+      .then((json) => { if (json.success) setHealth(json); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setReportStatus("loading");
@@ -301,6 +369,8 @@ export default function ScreenerHistoryPage() {
   return (
     <>
       <Topbar title="Kalibrasi Score" />
+
+      <DataHealthCard status={health} />
 
       <div className="ruleset-toggle">
         <button className={ruleset === "2" ? "active" : ""} onClick={() => setRuleset("2")}>Aturan Baru</button>

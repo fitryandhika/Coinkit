@@ -78,15 +78,23 @@ masuk sebagai Environment Variable di Vercel, tidak pernah di kode frontend.
 
 ---
 
-## 5. Monitoring otomatis (worker)
+## 5. Monitoring otomatis (dua worker)
 
-Vercel Hobby Cron cuma jalan 1x/hari (`vercel.json` sudah berisi ini sebagai
-fallback). Untuk pemantauan lebih cepat (menit-an), daftar
-[cron-job.org](https://cron-job.org) gratis, buat cron job:
+Aplikasi ini butuh **dua** job terjadwal. Keduanya wajib — kalau salah satu
+mati, riwayat berhenti bertambah tanpa pesan error apa pun.
 
-- **URL**: `https://domain-anda.vercel.app/api/worker/evaluate-predictions?secret=ISI_WORKER_SECRET`
-- **Interval**: setiap 5 menit
-- **Method**: GET
+| Job | URL | Interval |
+|---|---|---|
+| **Perekam setup** | `/api/worker/record-setups?secret=WORKER_SECRET` | 15 menit |
+| **Evaluator hasil** | `/api/worker/evaluate-predictions?secret=WORKER_SECRET` | 10-15 menit |
+
+Daftarkan keduanya di [cron-job.org](https://cron-job.org) (gratis). Vercel
+Hobby membatasi cron bawaan ke 1x/hari, jadi `vercel.json` hanya cadangan —
+dan cron bawaan itu baru berfungsi kalau Environment Variable `CRON_SECRET`
+diisi.
+
+Status keduanya terlihat di kartu **Status Pengumpul Data** paling atas
+halaman Kalibrasi, atau langsung di `/api/worker/status`.
 
 ---
 
@@ -297,3 +305,50 @@ granularitas 15m tidak selalu masih tersedia untuk semua pasangan. Menghitung
 ulang sebagian saja justru menghasilkan campuran dua metode. Lebih jujur:
 tandai v1, mulai kumpulkan v2 dari nol. Dengan cron tiap 15 menit, 40 setup
 (ambang vonis) biasanya terkumpul dalam beberapa hari.
+
+
+---
+
+## 12. Pencatatan Terjadwal (kenapa riwayat pernah berhenti)
+
+Sampai versi sebelumnya, satu-satunya yang mencatat setup adalah
+`/api/screener` — yang hanya terpanggil saat halaman Dashboard, Screener, atau
+Opportunities dibuka. Akibatnya riwayat hanya bertambah saat aplikasi kebetulan
+dibuka, dan berhenti total saat tidak.
+
+Untuk kalibrasi ada efek kedua yang lebih halus: sampel jadi condong ke jam-jam
+Anda online. Score diuji hanya pada sebagian kondisi pasar, lalu kesimpulannya
+dipakai untuk semua jam.
+
+**Sekarang:**
+
+1. `runScreener()` punya parameter `record`, **default `false`**. Membuka
+   halaman tidak lagi menulis apa pun ke database.
+2. `/api/worker/record-setups` menjalankan screener dan mencatat setup yang
+   memenuhi syarat, dipanggil scheduler tiap 15 menit. Pencatatan **ditunggu**
+   sampai selesai — bukan fire-and-forget, karena Vercel boleh membekukan proses
+   begitu response terkirim.
+3. Dedup tidak lagi memblokir selamanya. Prediction `PENDING` yang horizonnya
+   sudah habis dianggap tidak aktif, jadi evaluator yang mati tidak lagi ikut
+   membekukan pencatatan setiap symbol.
+4. Setiap pencatatan melaporkan statusnya (`RECORDED` / `SKIPPED` / `DUPLICATE`
+   / `ERROR`) beserta alasannya. Response perekam menampilkan ringkasan dan
+   maksimal 5 contoh pesan error asli dari Supabase.
+
+### Membaca response perekam
+
+```json
+{ "totalRecorded": 71, "totalErrors": 0,
+  "runs": [{ "mode": "futures", "recorded": 38, "duplicate": 0, "skipped": 82,
+             "skipReasons": { "BELOW_THRESHOLD": 49, "NEUTRAL_DIRECTION": 33 } }] }
+```
+
+`skipReasons` bukan daftar error — itu alasan sah sebuah coin tidak dicatat.
+Yang perlu ditindaklanjuti hanya `totalErrors` dan array `errors`.
+
+### Kartu Status Pengumpul Data
+
+Kartu paling atas halaman Kalibrasi menjawab pertanyaan yang dulu tidak bisa
+dijawab dari layar: apakah kosongnya data berarti "score belum terbukti" atau
+"tidak ada yang masuk sejak lima hari lalu". Merah kalau perekam atau evaluator
+diam lebih dari 2 jam.
